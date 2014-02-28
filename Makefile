@@ -1,6 +1,6 @@
 #******************************************************************************
 #
-# Makefile - Rules for building the hello example.
+# Makefile - Rules for building the invpend example.
 #
 # Copyright (c) 2006-2013 Texas Instruments Incorporated.  All rights reserved.
 # Software License Agreement
@@ -50,7 +50,7 @@ IPATH=..
 IPATH+=../../..
 
 #
-# The default rule, which causes the hello example to be built.
+# The default rule, which causes the invpend example to be built.
 #
 all: ${COMPILER}
 all: ${COMPILER}/invpend.axf
@@ -75,16 +75,16 @@ ${COMPILER}:
 	@mkdir -p ${COMPILER}
 
 #
-# Rules for building the hello example.
+# Rules for building the invpend example.
 #
-${COMPILER}/hello.axf: ${COMPILER}/invpend.o
-${COMPILER}/hello.axf: ${COMPILER}/rit128x96x4.o
-${COMPILER}/hello.axf: ${COMPILER}/startup_${COMPILER}.o
-${COMPILER}/hello.axf: ${COMPILER}/ustdlib.o
-${COMPILER}/hello.axf: ${ROOT}/driverlib/${COMPILER}-cm3/libdriver-cm3.a
-${COMPILER}/hello.axf: invpend.ld
-SCATTERgcc_hello=invpend.ld
-ENTRY_hello=ResetISR
+${COMPILER}/invpend.axf: ${COMPILER}/invpend.o
+${COMPILER}/invpend.axf: ${COMPILER}/rit128x96x4.o
+${COMPILER}/invpend.axf: ${COMPILER}/startup_${COMPILER}.o
+${COMPILER}/invpend.axf: ${COMPILER}/ustdlib.o
+${COMPILER}/invpend.axf: ${ROOT}/driverlib/${COMPILER}-cm3/libdriver-cm3.a
+${COMPILER}/invpend.axf: invpend.ld
+SCATTERgcc_invpend=invpend.ld
+ENTRY_invpend=ResetISR
 
 #
 # Include the automatically generated dependency files.
