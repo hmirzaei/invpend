@@ -37,7 +37,7 @@ SECTIONS
         *(.text*)
         *(.rodata*)
         _etext = .;
-    } > SRAM
+    } > FLASH
     .data : AT(ADDR(.text) + SIZEOF(.text))
     {
         _data = .;
