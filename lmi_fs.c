@@ -28,6 +28,7 @@
 #include "utils/ustdlib.h"
 #include "httpserver_raw/fs.h"
 #include "httpserver_raw/fsdata.h"
+#include "drivers/rit128x96x4.h"
 
 //*****************************************************************************
 //
@@ -59,135 +60,144 @@ static char g_cSampleTextBuffer[16] = {0};
 // example web page.
 //
 //*****************************************************************************
+int offset = 0;
 struct fs_file *
 fs_open(char *name)
 {
-    char *data;
-    int i;
-    const struct fsdata_file *ptTree;
-    struct fs_file *ptFile = NULL;
+  char *data;
+  int i;
+  const struct fsdata_file *ptTree;
+  struct fs_file *ptFile = NULL;
 
-    //
-    // Allocate memory for the file system structure.
-    //
-    ptFile = mem_malloc(sizeof(struct fs_file));
-    if(NULL == ptFile)
+  //
+  // Allocate memory for the file system structure.
+  //
+  ptFile = mem_malloc(sizeof(struct fs_file));
+  if(NULL == ptFile)
     {
-        return(NULL);
+      return(NULL);
     }
 
-    //
-    // Process request to toggle STATUS LED
-    //
-    if(strncmp(name, "/cgi-bin/toggle_led", 19) == 0)
+  //
+  // Process request to toggle STATUS LED
+  //
+  if(strncmp(name, "/cgi-bin/toggle_led", 19) == 0)
     {
-        //
-        // Toggle the STATUS LED
-        //
-      //        io_set_led(!io_is_led_on());
+      //
+      // Toggle the STATUS LED
+      //
+      //io_set_led(!io_is_led_on());
 
-        //
-        // Setup the file structure to return whatever.
-        //
-        ptFile->data = NULL;
-        ptFile->len = 0;
-        ptFile->index = 0;
-        ptFile->pextension = NULL;
+      //
+      // Setup the file structure to return whatever.
+      //
+      ptFile->data = NULL;
+      ptFile->len = 0;
+      ptFile->index = 0;
+      ptFile->pextension = NULL;
 
-        //
-        // Return the file system pointer.
-        //
-        return(ptFile);
+      //
+      // Return the file system pointer.
+      //
+      return(ptFile);
     }
 
 
-    //
-    // Request for LED State?
-    //
-    if(strncmp(name, "/ledstate?id", 12) == 0)
+  //
+  // Request for LED State?
+  //
+  if(strncmp(name, "/ledstate?id", 12) == 0)
     {
-        static char pcBuf[4];
+      static char pcBuf[4];
 
-        //
-        // Get the state of the LED
-        //
-	//        io_get_ledstate(pcBuf, 4);
+      //
+      // Get the state of the LED
+      //
+      //        io_get_ledstate(pcBuf, 4);
 
-        ptFile->data = pcBuf;
-        ptFile->len = strlen(pcBuf);
-        ptFile->index = ptFile->len;
-        ptFile->pextension = NULL;
-        return(ptFile);
+	
+
+      usprintf(pcBuf, "123");
+      RIT128x96x4StringDraw("HERE:   ", 0, 42, 15);
+
+      ptFile->data = pcBuf;
+      ptFile->len = strlen(pcBuf);
+      ptFile->index = ptFile->len;
+      ptFile->pextension = NULL;
+      return(ptFile);
     }
-
-    //
-    // If I can't find it there, look in the rest of the main file system
-    //
-    else
+  //
+  // If I can't find it there, look in the rest of the main file system
+  //
+  else
     {
-        //
-        // Initialize the file system tree pointer to the root of the linked list.
-        //
-        ptTree = FS_ROOT;
+      static char pcBuf[40];
+      usprintf(pcBuf, "NOTF: %s", name);
+      RIT128x96x4StringDraw(pcBuf, 0, 42+offset, 15);
+      offset +=10;
+      //
+      // Initialize the file system tree pointer to the root of the linked list.
+      //
+      ptTree = FS_ROOT;
 
-        //
-        // Begin processing the linked list, looking for the requested file name.
-        //
-        while(NULL != ptTree)
+      //
+      // Begin processing the linked list, looking for the requested file name.
+      //
+      while(NULL != ptTree)
         {
-            //
-            // Compare the requested file "name" to the file name in the
-            // current node.
-            //
-            if(strncmp(name, (char *)ptTree->name, ptTree->len) == 0)
+	  //
+	  // Compare the requested file "name" to the file name in the
+	  // current node.
+	  //
+	  if(strncmp(name, (char *)ptTree->name, ptTree->len) == 0)
             {
-                //
-                // Fill in the data pointer and length values from the
-                // linked list node.
-                //
-                ptFile->data = (char *)ptTree->data;
-                ptFile->len = ptTree->len;
+	      //
+	      // Fill in the data pointer and length values from the
+	      // linked list node.
+	      //
+	      ptFile->data = (char *)ptTree->data;
+	      ptFile->len = ptTree->len;
 
-                //
-                // For now, we setup the read index to the end of the file,
-                // indicating that all data has been read.
-                //
-                ptFile->index = ptTree->len;
+	      //
+	      // For now, we setup the read index to the end of the file,
+	      // indicating that all data has been read.
+	      //
+	      ptFile->index = ptTree->len;
 
-                //
-                // We are not using any file system extensions in this
-                // application, so set the pointer to NULL.
-                //
-                ptFile->pextension = NULL;
+	      //
+	      // We are not using any file system extensions in this
+	      // application, so set the pointer to NULL.
+	      //
+	      ptFile->pextension = NULL;
 
-                //
-                // Exit the loop and return the file system pointer.
-                //
-                break;
+	      //
+	      // Exit the loop and return the file system pointer.
+	      //
+	      break;
             }
 
-            //
-            // If we get here, we did not find the file at this node of the linked
-            // list.  Get the next element in the list.
-            //
-            ptTree = ptTree->next;
+	  //
+	  // If we get here, we did not find the file at this node of the linked
+	  // list.  Get the next element in the list.
+	  //
+	  ptTree = ptTree->next;
         }
     }
 
-    //
-    // If we didn't find the file, ptTee will be NULL.  Make sure we
-    // return a NULL pointer if this happens.
-    //
-    if(NULL == ptTree)
+  //
+  // If we didn't find the file, ptTee will be NULL.  Make sure we
+  // return a NULL pointer if this happens.
+  //
+  if(NULL == ptTree)
     {
-        mem_free(ptFile);
-        ptFile = NULL;
+      mem_free(ptFile);
+      ptFile = NULL;
     }
 
-    //
-    // Return the file system pointer.
-    //
-    return(ptFile);
+  //
+  // Return the file system pointer.
+  //
+  return(ptFile);
 }
 
 //*****************************************************************************
@@ -198,10 +208,10 @@ fs_open(char *name)
 void
 fs_close(struct fs_file *file)
 {
-    //
-    // Free the main file system object.
-    //
-    mem_free(file);
+  //
+  // Free the main file system object.
+  //
+  mem_free(file);
 }
 
 //*****************************************************************************
@@ -214,49 +224,49 @@ fs_close(struct fs_file *file)
 int
 fs_read(struct fs_file *file, char *buffer, int count)
 {
-    int iAvailable;
+  int iAvailable;
 
-    //
-    // Check to see if a command (pextension = 1).
-    //
-    if(file->pextension == (void *)1)
+  //
+  // Check to see if a command (pextension = 1).
+  //
+  if(file->pextension == (void *)1)
     {
-        //
-        // Nothting to do for this file type.
-        //
-        file->pextension = NULL;
-        return(-1);
+      //
+      // Nothting to do for this file type.
+      //
+      file->pextension = NULL;
+      return(-1);
     }
 
-    //
-    // Check to see if more data is available.
-    //
-    if(file->len == file->index)
+  //
+  // Check to see if more data is available.
+  //
+  if(file->len == file->index)
     {
-        //
-        // There is no remaining data.  Return a -1 for EOF indication.
-        //
-        return(-1);
+      //
+      // There is no remaining data.  Return a -1 for EOF indication.
+      //
+      return(-1);
     }
 
-    //
-    // Determine how much data we can copy.  The minimum of the 'count'
-    // parameter or the available data in the file system buffer.
-    //
-    iAvailable = file->len - file->index;
-    if(iAvailable > count)
+  //
+  // Determine how much data we can copy.  The minimum of the 'count'
+  // parameter or the available data in the file system buffer.
+  //
+  iAvailable = file->len - file->index;
+  if(iAvailable > count)
     {
-        iAvailable = count;
+      iAvailable = count;
     }
 
-    //
-    // Copy the data.
-    //
-    memcpy(buffer, file->data + iAvailable, iAvailable);
-    file->index += iAvailable;
+  //
+  // Copy the data.
+  //
+  memcpy(buffer, file->data + iAvailable, iAvailable);
+  file->index += iAvailable;
 
-    //
-    // Return the count of data that we copied.
-    //
-    return(iAvailable);
+  //
+  // Return the count of data that we copied.
+  //
+  return(iAvailable);
 }
