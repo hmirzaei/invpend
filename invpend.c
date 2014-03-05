@@ -96,14 +96,14 @@ void Timer0IntHandler(void)
   TIC;
 
   curr = readCurrent();
-  currErr = currSetPnt-curr;
-  currErrInt = currErrInt + currErr;
-  pwm = 0.3*currErr+ 0.06 * currErrInt;
-  if (pwm>PWM_MAX) {
-    pwm=PWM_MAX;
-  } else if (pwm <-PWM_MAX) {
-    pwm=-PWM_MAX;
-  }
+  /* currErr = currSetPnt-curr; */
+  /* currErrInt = currErrInt + currErr; */
+  /* pwm = 0.3*currErr+ 0.06 * currErrInt; */
+  /* if (pwm>PWM_MAX) { */
+  /*   pwm=PWM_MAX; */
+  /* } else if (pwm <-PWM_MAX) { */
+  /*   pwm=-PWM_MAX; */
+  /* } */
   writePwm(pwm);
 
   if (motEncPeriod != 0) {
@@ -111,30 +111,30 @@ void Timer0IntHandler(void)
   } else {
     spd = 1e-10;
   }
-  spdErr = spdSetPnt-spd;
-  spdErrInt = spdErrInt + spdErr;
-  if (spdErrInt > 1000) {
-    spdErrInt = 1000;
-  } else if (spdErrInt < -1000) {
-    spdErrInt = -1000;
-  }
-  currSetPnt = 0.7*spdErr;// +  0.003 * spdErrInt;
-  if (currSetPnt > 3) {
-    currSetPnt = 3;
-  } else if (currSetPnt < -3) {
-    currSetPnt = -3;
-  }
+  /* spdErr = spdSetPnt-spd; */
+  /* spdErrInt = spdErrInt + spdErr; */
+  /* if (spdErrInt > 1000) { */
+  /*   spdErrInt = 1000; */
+  /* } else if (spdErrInt < -1000) { */
+  /*   spdErrInt = -1000; */
+  /* } */
+  /* currSetPnt = 0.7*spdErr;// +  0.003 * spdErrInt; */
+  /* if (currSetPnt > 3) { */
+  /*   currSetPnt = 3; */
+  /* } else if (currSetPnt < -3) { */
+  /*   currSetPnt = -3; */
+  /* } */
 
   pos = motEncAngle/1633.0*2;
-  posErr = posSetPnt-pos;
-  spdSetPnt = 50*posErr;
-  if (spdSetPnt > 2) {
-    spdSetPnt = 2;
-  } else if (spdSetPnt < -2) {
-    spdSetPnt = -2;
-  }
+  /* posErr = posSetPnt-pos; */
+  /* spdSetPnt = 50*posErr; */
+  /* if (spdSetPnt > 3) { */
+  /*   spdSetPnt = 3; */
+  /* } else if (spdSetPnt < -3) { */
+  /*   spdSetPnt = -3; */
+  /* } */
 
-  /* pendPos = pendEncAngle/4000; */
+  pendPos = pendEncAngle/4000.0/4;
   /* posSetPnt = 1*pendPos; */
   /* if (posSetPnt > 1) { */
   /*   posSetPnt = 1; */
@@ -145,10 +145,10 @@ void Timer0IntHandler(void)
   counter = counter + 1;
   if (counter == 20000) {
     if (!flag) {
-      posSetPnt =.1;
+      posSetPnt =0;
       flag = 1;
     } else {
-      posSetPnt = -.1;
+      posSetPnt = 0;
       flag = 0;
     }
     counter = 0;
@@ -167,9 +167,9 @@ void GPIOBIntHandler(void)
   //
   // Clear the GPIO interrupt.
   //
-  GPIOPinIntClear(GPIO_PORTB_BASE, GPIO_PIN_1|GPIO_PIN_3);    
+  GPIOPinIntClear(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3);    
 
-  state = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_1|GPIO_PIN_3) >> 2;
+  state = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3) >> 2;
   diff = encStates[state]-encStates[motEncPrevState];
   if (diff == 3) {
     diff = -1;
@@ -200,7 +200,7 @@ void GPIODIntHandler(void)
   //
   GPIOPinIntClear(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);    
 
-  state = GPIOPinRead(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5) >> 2;
+  state = GPIOPinRead(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5) >> 5;
   diff = encStates[state]-encStates[pendEncPrevState];
   if (diff == 3) {
     diff = -1;
@@ -232,11 +232,11 @@ void init(void) {
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
   GPIOPinTypeGPIOOutput(GPIO_PORTB_BASE, GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6);
-  GPIOPinTypeGPIOInput(GPIO_PORTB_BASE, GPIO_PIN_1|GPIO_PIN_3);
+  GPIOPinTypeGPIOInput(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3);
   GPIOPinTypeGPIOInput(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);
-  GPIOIntTypeSet(GPIO_PORTB_BASE, GPIO_PIN_1|GPIO_PIN_3, GPIO_BOTH_EDGES);
+  GPIOIntTypeSet(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3, GPIO_BOTH_EDGES);
   GPIOIntTypeSet(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5, GPIO_BOTH_EDGES);
-  GPIOPinIntEnable(GPIO_PORTB_BASE, GPIO_PIN_1|GPIO_PIN_3);
+  GPIOPinIntEnable(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3);
   GPIOPinIntEnable(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);
   IntEnable(INT_GPIOB);
   IntEnable(INT_GPIOD);
@@ -282,12 +282,16 @@ void init(void) {
 
 
   //Int
+  IntPriorityGroupingSet(3); 
+  IntPrioritySet(INT_TIMER0A, 1<<5);
+  IntPrioritySet(INT_GPIOB, 1);
   IntMasterEnable();
 
 }
 
 int main(void)
 {
+  pwm = 0;
   currErrInt = 0;
   currSetPnt = 0; 
   spdErrInt = 0;
@@ -297,9 +301,12 @@ int main(void)
   flag = 0;
   motEncPrevState = 0;
   motEncAngle = 0;
-  motEncPeriod = 0xFFFF;
+  motEncPeriod = 0xFFFFFFFF;
   motPrevDiff = 0;
-
+  pendEncPrevState = 0;
+  pendEncAngle = -0.328*4000*4;
+  pendEncPeriod = 0xFFFFFFFF;
+  pendPrevDiff = 0;
   init();
 
   usprintf(str, "Started !!!");
@@ -312,7 +319,7 @@ int main(void)
     RIT128x96x4StringDraw(str , 10, 34, 15);
     usprintf(str, "pend = %6d",   (int)(pendPos*1000));
     RIT128x96x4StringDraw(str , 10, 44, 15);
-    usprintf(str, "curr = %6d",   (int)(currSetPnt*1000));
+    usprintf(str, "curr = %6d",   (int)(curr*1000));
     RIT128x96x4StringDraw(str , 10, 54, 15);
 
     /* if (pos > 1.2 || pos < 1.2 || pendPos < -0.125 || pendPos > 0.125) { */
