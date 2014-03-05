@@ -27,13 +27,20 @@ double pwm;
 double curr, currErr, currErrInt, currSetPnt;
 double spd, spdErr, spdErrInt, spdSetPnt;
 double pos, posErr, posSetPnt;
+double pendPos;
 
 int counter;
 int flag;
+
 int motEncPrevState;
 long motEncAngle;
 long motEncPeriod;
 int motPrevDiff;
+
+int pendEncPrevState;
+long pendEncAngle;
+long pendEncPeriod;
+int pendPrevDiff;
 
 
 //*****************************************************************************
@@ -127,6 +134,14 @@ void Timer0IntHandler(void)
     spdSetPnt = -2;
   }
 
+  pendPos = pendEncAngle/4000;
+  posSetPnt = 1*pendPos;
+  if (posSetPnt > 1) {
+    posSetPnt = 1;
+  } else if (posSetPnt < -1) {
+    posSetPnt = -1;
+  }
+
   counter = counter + 1;
   if (counter == 20000) {
     if (!flag) {
@@ -145,16 +160,16 @@ void Timer0IntHandler(void)
 }
 
 
-void GPIOEIntHandler(void)
+void GPIOBIntHandler(void)
 {
   int state;
   int diff;
   //
   // Clear the GPIO interrupt.
   //
-  GPIOPinIntClear(GPIO_PORTE_BASE, GPIO_PIN_2|GPIO_PIN_3);    
+  GPIOPinIntClear(GPIO_PORTB_BASE, GPIO_PIN_1|GPIO_PIN_3);    
 
-  state = GPIOPinRead(GPIO_PORTE_BASE, GPIO_PIN_2|GPIO_PIN_3) >> 2;
+  state = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_1|GPIO_PIN_3) >> 2;
   diff = encStates[state]-encStates[motEncPrevState];
   if (diff == 3) {
     diff = -1;
@@ -176,6 +191,37 @@ void GPIOEIntHandler(void)
   motEncPrevState = state;
   motPrevDiff = diff;
 }
+void GPIODIntHandler(void)
+{
+  int state;
+  int diff;
+  //
+  // Clear the GPIO interrupt.
+  //
+  GPIOPinIntClear(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);    
+
+  state = GPIOPinRead(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5) >> 2;
+  diff = encStates[state]-encStates[pendEncPrevState];
+  if (diff == 3) {
+    diff = -1;
+  } else if (diff == -3) {
+    diff = 1;
+  }
+  pendEncAngle += diff;
+
+  if (pendPrevDiff+diff==2) {
+    pendEncPeriod = 0XFFFFFFFF-TimerValueGet64(TIMER2_BASE);
+    TimerLoadSet64(TIMER2_BASE, 0xFFFFFFFF);
+    TimerEnable(TIMER2_BASE, TIMER_A);
+  } else if (pendPrevDiff+diff==-2) {
+    pendEncPeriod = -(0XFFFFFFFF-TimerValueGet64(TIMER2_BASE));
+    TimerLoadSet64(TIMER2_BASE, 0xFFFFFFFF);
+    TimerEnable(TIMER2_BASE, TIMER_A);
+  }
+  
+  pendEncPrevState = state;
+  pendPrevDiff = diff;
+}
 
 
 void init(void) {
@@ -184,12 +230,16 @@ void init(void) {
 
   // GPIO
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
-  SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
   GPIOPinTypeGPIOOutput(GPIO_PORTB_BASE, GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6);
-  GPIOPinTypeGPIOInput(GPIO_PORTE_BASE, GPIO_PIN_2|GPIO_PIN_3);
-  GPIOIntTypeSet(GPIO_PORTE_BASE, GPIO_PIN_2|GPIO_PIN_3, GPIO_BOTH_EDGES);
-  GPIOPinIntEnable(GPIO_PORTE_BASE, GPIO_PIN_2|GPIO_PIN_3);
-  IntEnable(INT_GPIOE);
+  GPIOPinTypeGPIOInput(GPIO_PORTB_BASE, GPIO_PIN_1|GPIO_PIN_3);
+  GPIOPinTypeGPIOInput(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);
+  GPIOIntTypeSet(GPIO_PORTB_BASE, GPIO_PIN_1|GPIO_PIN_3, GPIO_BOTH_EDGES);
+  GPIOIntTypeSet(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5, GPIO_BOTH_EDGES);
+  GPIOPinIntEnable(GPIO_PORTB_BASE, GPIO_PIN_1|GPIO_PIN_3);
+  GPIOPinIntEnable(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);
+  IntEnable(INT_GPIOB);
+  IntEnable(INT_GPIOD);
 
   // PWM0
   SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM0);
@@ -217,23 +267,19 @@ void init(void) {
   //TIMER
   SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER0);
   SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER1);
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER2);
   TimerConfigure(TIMER0_BASE, TIMER_CFG_PERIODIC);
   TimerConfigure(TIMER1_BASE, TIMER_CFG_ONE_SHOT);
+  TimerConfigure(TIMER2_BASE, TIMER_CFG_ONE_SHOT);
   TimerLoadSet(TIMER0_BASE, TIMER_A, (unsigned long)(SysCtlClockGet() * CTRL_SAMP_TIME));
   TimerLoadSet64(TIMER1_BASE, 0xFFFFFFFF);
+  TimerLoadSet64(TIMER2_BASE, 0xFFFFFFFF);
   IntEnable(INT_TIMER0A);
   TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
   TimerEnable(TIMER0_BASE, TIMER_A);
   TimerEnable(TIMER1_BASE, TIMER_A);
+  TimerEnable(TIMER2_BASE, TIMER_A);
 
-  /* //QEI */
-  /* SysCtlPeripheralEnable(SYSCTL_PERIPH_QEI1); */
-  /* GPIOPinTypeQEI(GPIO_PORTE_BASE, GPIO_PIN_2 |  GPIO_PIN_3); */
-  /* QEIConfigure(QEI1_BASE, (QEI_CONFIG_CAPTURE_A_B  | QEI_CONFIG_NO_RESET | QEI_CONFIG_QUADRATURE | QEI_CONFIG_NO_SWAP), 100000000); */
-  /* QEIVelocityConfigure(QEI1_BASE, QEI_VELDIV_1, SysCtlClockGet()/10); */
-  /* QEIPositionSet(QEI1_BASE, 0); */
-  /* QEIEnable(QEI1_BASE); */
-  /* QEIVelocityEnable(QEI1_BASE); */
 
   //Int
   IntMasterEnable();
@@ -262,10 +308,18 @@ int main(void)
   while(1){
     usprintf(str, "spd = %6d",  (int)(spd*1000));
     RIT128x96x4StringDraw(str , 10, 24, 15);
-    usprintf(str, "pos = %6d",  (int)(pos*1000));
+    usprintf(str, "mot = %6d",  (int)(pos*1000));
     RIT128x96x4StringDraw(str , 10, 34, 15);
-    usprintf(str, "curr = %6d",   (int)(currSetPnt*1000));
+    usprintf(str, "pend = %6d",   (int)(pendPos*1000));
     RIT128x96x4StringDraw(str , 10, 44, 15);
+    usprintf(str, "curr = %6d",   (int)(currSetPnt*1000));
+    RIT128x96x4StringDraw(str , 10, 54, 15);
+
+    if (pos > 1.2 || pos < 1.2 || pendPos < -0.125 || pendPos > 0.125) {
+      IntMasterDisable();
+      while (1) {
+      }
+    }
     SysCtlDelay(SysCtlClockGet() / 50);
   }
 
