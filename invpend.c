@@ -134,13 +134,13 @@ void Timer0IntHandler(void)
     spdSetPnt = -2;
   }
 
-  pendPos = pendEncAngle/4000;
-  posSetPnt = 1*pendPos;
-  if (posSetPnt > 1) {
-    posSetPnt = 1;
-  } else if (posSetPnt < -1) {
-    posSetPnt = -1;
-  }
+  /* pendPos = pendEncAngle/4000; */
+  /* posSetPnt = 1*pendPos; */
+  /* if (posSetPnt > 1) { */
+  /*   posSetPnt = 1; */
+  /* } else if (posSetPnt < -1) { */
+  /*   posSetPnt = -1; */
+  /* } */
 
   counter = counter + 1;
   if (counter == 20000) {
@@ -315,11 +315,11 @@ int main(void)
     usprintf(str, "curr = %6d",   (int)(currSetPnt*1000));
     RIT128x96x4StringDraw(str , 10, 54, 15);
 
-    if (pos > 1.2 || pos < 1.2 || pendPos < -0.125 || pendPos > 0.125) {
-      IntMasterDisable();
-      while (1) {
-      }
-    }
+    /* if (pos > 1.2 || pos < 1.2 || pendPos < -0.125 || pendPos > 0.125) { */
+    /*   IntMasterDisable(); */
+    /*   while (1) { */
+    /*   } */
+    /* } */
     SysCtlDelay(SysCtlClockGet() / 50);
   }
 
