@@ -84,8 +84,6 @@ ${COMPILER}:
 # Rules for building the invpend example.
 #
 ${COMPILER}/invpend.axf: ${COMPILER}/invpend.o
-${COMPILER}/invpend.axf: ${COMPILER}/httpd.o
-${COMPILER}/invpend.axf: ${COMPILER}/lmi_fs.o
 ${COMPILER}/invpend.axf: ${COMPILER}/locator.o
 ${COMPILER}/invpend.axf: ${COMPILER}/lwiplib.o
 ${COMPILER}/invpend.axf: ${COMPILER}/rit128x96x4.o

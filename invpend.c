@@ -65,13 +65,6 @@ static volatile unsigned long g_ulFlags;
 // External Application references.
 //
 //*****************************************************************************
-extern void httpd_init(void);
-
-
-#define JAVASCRIPT_HEADER					\
-  "<script type='text/javascript' language='JavaScript'><!--\n"
-#define JAVASCRIPT_FOOTER			\
-  "//--></script>\n"
 
 //*****************************************************************************
 //
@@ -412,9 +405,8 @@ initEnet() {
   LocatorInit();
   LocatorMACAddrSet(pucMACArray);
   LocatorAppTitleSet("EK-LM3S6965 enet_io");
-
-  httpd_init();
 }
+
 
 int main(void)
 {
