@@ -9,7 +9,6 @@
 #define DHCP_EXPIRE_TIMER_SECS  45
 #endif
 
-extern char tcp_buffer[1024];
 
 void DisplayIPAddress(unsigned long ipaddr, unsigned long ulCol, unsigned long ulRow);
 void Timer0IntHandler(void);

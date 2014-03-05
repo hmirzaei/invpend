@@ -33,12 +33,15 @@ double curr, currErr, currErrInt, currSetPnt;
 double spd, spdErr, spdErrInt, spdSetPnt;
 double pos, posErr, posSetPnt;
 
+unsigned long ulADC0_Value[8];
 int counter;
 int flag;
 int motEncPrevState;
 long motEncAngle;
 long motEncPeriod;
 int motPrevDiff;
+
+unsigned int tcpCounter;
 
 
 //*****************************************************************************
@@ -66,7 +69,6 @@ inline void writePwm(double pwm) {
 }
 
 inline double readCurrent() {
-  unsigned long ulADC0_Value[8];
   int pinVal;
 
   pinVal = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_4|GPIO_PIN_5);
@@ -144,6 +146,8 @@ void SysTickIntHandler(void)
     counter = 0;
   }
 
+  queEnc(*((char *) ulADC0_Value));
+  queEnc(*((char *) ulADC0_Value+1));
   /* IntMasterDisable(); */
   /* IntMasterEnable(); */
   TOC;
@@ -263,6 +267,7 @@ int main(void)
   motEncPeriod = 0xFFFF;
   motPrevDiff = 0;
 
+  tcpCounter = 0;
   initHardware();
   initEnet();
 

@@ -154,7 +154,7 @@ initEnet() {
 }
 
 
-char tcp_buffer[1024];
+unsigned char tcp_buffer[1000];
 static void close_conn (struct tcp_pcb *pcb )
 {
   tcp_arg(pcb, NULL);
@@ -174,20 +174,20 @@ static err_t echo_recv( void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t er
       pc = (char *)p->payload;
       len =p->tot_len;
  
-      for( i=0; i<len; i++ )
-        {
-	  tcp_buffer[i] = pc[i];
-        }
+      /* for( i=0; i<len; i++ ) */
+      /*   { */
+      /* 	  tcp_buffer[i] = pc[i]; */
+      /*   } */
  
-      if( tcp_buffer[0] == 'X' )
+      if( pc[0] == 'X' )
 	close_conn( pcb );
  
       pbuf_free( p );
  
-      if( len > tcp_sndbuf( pcb ) )
-	len= tcp_sndbuf( pcb );
- 
-      tcp_write( pcb, tcp_buffer, len, 0 );
+      /* if( len > tcp_sndbuf( pcb ) ) */
+      /* 	len= tcp_sndbuf( pcb ); */
+       
+      tcp_write( pcb, tcp_buffer, 1000, 0 );
       tcp_sent( pcb, NULL );
     }
   else
