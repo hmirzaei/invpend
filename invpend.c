@@ -36,6 +36,7 @@ double pwm;
 double curr, currErr, currErrInt, currSetPnt;
 double spd, spdErr, spdErrInt, spdSetPnt;
 double pos, posErr, posSetPnt;
+double pendSpd;
 double pendPos;
 enum Mode {
   Open = 0,
@@ -251,8 +252,11 @@ int main(void)
   timerFlag = 0;
 
   pwm = 0;
+  
+  pendSpd = 0;
   currErrInt = 0;
   currSetPnt = 0; 
+  spd = 0;
   spdErrInt = 0;
   spdSetPnt = 0; 
   posSetPnt = 0; 
@@ -314,51 +318,40 @@ int main(void)
     }
 
     if (mode==Stab) {
-      /* curr = readCurrent(); */
-      /* currErr = currSetPnt-curr; */
-      /* currErrInt = currErrInt + currErr; */
-      /* pwm = 0.3*currErr+ 0.06 * currErrInt; */
-      /* if (pwm>PWM_MAX) { */
-      /*   pwm=PWM_MAX; */
-      /* } else if (pwm <-PWM_MAX) { */
-      /*   pwm=-PWM_MAX; */
-      /* } */
-      /* writePwm(pwm); */
+
+      if (pendEncPeriod != 0) {
+	pendSpd = 50000000.0/((double)pendEncPeriod)/4000/4;
+      } else {
+	pendSpd = 1e-10;
+      }
+      pendPos = pendEncAngle/4000.0/4;
 
       if (motEncPeriod != 0) {
-	spd = 50000000.0/((double)motEncPeriod)/1633;
+	spd = 50000000.0/((double)motEncPeriod)/1633*2;
       } else {
 	spd = 1e-10;
       }
-      /* spdErr = spdSetPnt-spd; */
-      /* spdErrInt = spdErrInt + spdErr; */
-      /* if (spdErrInt > 1000) { */
-      /*   spdErrInt = 1000; */
-      /* } else if (spdErrInt < -1000) { */
-      /*   spdErrInt = -1000; */
-      /* } */
-      /* currSetPnt = 0.7*spdErr;// +  0.003 * spdErrInt; */
-      /* if (currSetPnt > 3) { */
-      /*   currSetPnt = 3; */
-      /* } else if (currSetPnt < -3) { */
-      /*   currSetPnt = -3; */
-      /* } */
-  
-      pendPos = pendEncAngle/4000.0/4;
-
       pos = motEncAngle/1633.0*2;
-      posErr = posSetPnt-pos;
-      /* spdSetPnt = 50*posErr; */
-      /* if (spdSetPnt > 4) { */
-      /*   spdSetPnt = 4; */
-      /* } else if (spdSetPnt < -4) { */
-      /*   spdSetPnt = -4; */
-      /* } */
+
+#define k1 -2
+#define k2 -0.7
+#define a1 4
+#define a2 5
+
+#define K1 (k1*a2/(1-k1)*a1)
+#define K2 (k2*a1/(1-k1)*a1)
+#define K3 (k2*a2/(1-k1)*a1)
+
+      posSetPnt = K1 * pendPos + K2 * spd + K3 * pendSpd;
+      
 #define DEAD_ZONE 0.01
 #define START_PWM 0.34
 #define PWM_MAX 0.7
 
 #define ACC_MAX 1e-3
+
+
+      posErr = posSetPnt-pos;
 
       if (posErr < -DEAD_ZONE && posErr > DEAD_ZONE) {
 	posErr = 0;
@@ -387,20 +380,18 @@ int main(void)
       }
       writePwm(pwm);
 
-      counter = counter + 1;
-      if (counter == 10000) {
-	if (!flag) {
-	  posSetPnt = 0.2;
-	  flag = 1;
-	} else {
-	  posSetPnt = -.2;
-	  flag = 0;
-	}
-	counter = 0;
-      }
+      /* counter = counter + 1; */
+      /* if (counter == 10000) { */
+      /* 	if (!flag) { */
+      /* 	  posSetPnt = 0.2; */
+      /* 	  flag = 1; */
+      /* 	} else { */
+      /* 	  posSetPnt = -.2; */
+      /* 	  flag = 0; */
+      /* 	} */
+      /* 	counter = 0; */
+      /* } */
 
-      /* IntMasterDisable(); */
-      /* IntMasterEnable(); */
     }
     TOC;
   }
