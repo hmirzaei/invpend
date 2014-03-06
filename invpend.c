@@ -1,4 +1,3 @@
-#define PWM_MAX  0.99   // [0 to 1] 
 #define PWM_FREQ  20e3  //Hz
 #define CTRL_SAMP_TIME 0.2e-3 //Sec
 
@@ -102,71 +101,95 @@ inline double readCurrent() {
 // The interrupt handler for the first timer interrupt.
 //
 //*****************************************************************************
+double prevPwmInc = 0;
 void Timer0IntHandler(void)
 {
+  double pwmInc;
+
   TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
   TIC;
 
   curr = readCurrent();
+  /* currErr = currSetPnt-curr; */
+  /* currErrInt = currErrInt + currErr; */
+  /* pwm = 0.3*currErr+ 0.06 * currErrInt; */
+  /* if (pwm>PWM_MAX) { */
+  /*   pwm=PWM_MAX; */
+  /* } else if (pwm <-PWM_MAX) { */
+  /*   pwm=-PWM_MAX; */
+  /* } */
+  /* writePwm(pwm); */
+
   if (motEncPeriod != 0) {
     spd = 50000000.0/((double)motEncPeriod)/1633;
   } else {
     spd = 1e-10;
   }
-
+  /* spdErr = spdSetPnt-spd; */
+  /* spdErrInt = spdErrInt + spdErr; */
+  /* if (spdErrInt > 1000) { */
+  /*   spdErrInt = 1000; */
+  /* } else if (spdErrInt < -1000) { */
+  /*   spdErrInt = -1000; */
+  /* } */
+  /* currSetPnt = 0.7*spdErr;// +  0.003 * spdErrInt; */
+  /* if (currSetPnt > 3) { */
+  /*   currSetPnt = 3; */
+  /* } else if (currSetPnt < -3) { */
+  /*   currSetPnt = -3; */
+  /* } */
+  
   pos = motEncAngle/1633.0*2;
-  pendPos = pendEncAngle/4000.0/4;
+  posErr = posSetPnt-pos;
+  /* spdSetPnt = 50*posErr; */
+  /* if (spdSetPnt > 4) { */
+  /*   spdSetPnt = 4; */
+  /* } else if (spdSetPnt < -4) { */
+  /*   spdSetPnt = -4; */
+  /* } */
+#define DEAD_ZONE 0.01
+#define START_PWM 0.34
+#define PWM_MAX 0.7
+
+#define ACC_MAX 1e-3
+
+  if (posErr < -DEAD_ZONE && posErr > DEAD_ZONE) {
+    posErr = 0;
+  }
+
+  if (posErr > 0) {
+    pwm = START_PWM;
+  } else {
+    pwm = -START_PWM;
+  }
+
+  pwmInc = .3*posErr;
+  if (pwmInc-prevPwmInc > ACC_MAX) {
+    pwmInc = prevPwmInc + ACC_MAX;
+  } else if (pwmInc-prevPwmInc < -ACC_MAX) {
+
+    pwmInc = prevPwmInc-ACC_MAX;
+  } 
+  pwm += pwmInc;
+  prevPwmInc = pwmInc;
+
+  if (pwm>PWM_MAX) {
+    pwm=PWM_MAX;
+  } else if (pwm <-PWM_MAX) {
+    pwm=-PWM_MAX;
+  }
   writePwm(pwm);
 
-  if (mode == Stab) {
-    /* currErr = currSetPnt-curr; */
-    /* currErrInt = currErrInt + currErr; */
-    /* pwm = 0.3*currErr+ 0.06 * currErrInt; */
-    /* if (pwm>PWM_MAX) { */
-    /*   pwm=PWM_MAX; */
-    /* } else if (pwm <-PWM_MAX) { */
-    /*   pwm=-PWM_MAX; */
-    /* } */
-
-    /* spdErrInt = spdErrInt + spdErr; */
-    /* if (spdErrInt > 1000) { */
-    /*   spdErrInt = 1000; */
-    /* } else if (spdErrInt < -1000) { */
-    /*   spdErrInt = -1000; */
-    /* } */
-    /* currSetPnt = 0.7*spdErr;// +  0.003 * spdErrInt; */
-    /* if (currSetPnt > 3) { */
-    /*   currSetPnt = 3; */
-    /* } else if (currSetPnt < -3) { */
-    /*   currSetPnt = -3; */
-    /* } */
-
-    /* posErr = posSetPnt-pos; */
-    /* spdSetPnt = 50*posErr; */
-    /* if (spdSetPnt > 3) { */
-    /*   spdSetPnt = 3; */
-    /* } else if (spdSetPnt < -3) { */
-    /*   spdSetPnt = -3; */
-    /* } */
-
-    /* posSetPnt = 1*pendPos; */
-    /* if (posSetPnt > 1) { */
-    /*   posSetPnt = 1; */
-    /* } else if (posSetPnt < -1) { */
-    /*   posSetPnt = -1; */
-    /* } */
-
-    /*    counter = counter + 1;
-	  if (counter == 20000) {
-	  if (!flag) {
-	  posSetPnt =0;
-	  flag = 1;
-	  } else {
-	  posSetPnt = 0;
-	  flag = 0;
-	  }
-	  counter = 0;
-	  }*/
+  counter = counter + 1;
+  if (counter == 10000) {
+    if (!flag) {
+      posSetPnt = .2;
+      flag = 1;
+    } else {
+      posSetPnt = -.2;
+      flag = 0;
+    }
+    counter = 0;
   }
 
   /* IntMasterDisable(); */
@@ -331,7 +354,7 @@ int main(void)
   RIT128x96x4StringDraw(str , 10, 24, 15);
 
   while(1){
-    usprintf(str, "spd = %6d",  (int)(spd*1000));
+    usprintf(str, "pwm = %6d",  (int)(pwm*1000));
     RIT128x96x4StringDraw(str , 10, 24, 15);
     usprintf(str, "mot = %6d",  (int)(pos*1000));
     RIT128x96x4StringDraw(str , 10, 34, 15);
