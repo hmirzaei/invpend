@@ -1,4 +1,4 @@
-#define PWM_FREQ  20e3  //Hz
+#define PWM_FREQ 15e3  //Hz
 #define CTRL_SAMP_TIME 0.5e-3 //Sec
 
 #define TIC   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_6, 0x40);
@@ -267,7 +267,7 @@ int main(void)
   motEncPeriod = 0xFFFFFFFF;
   motPrevDiff = 0;
   pendEncPrevState = 0;
-  pendEncAngle = -0.328*4000*4;
+  pendEncAngle = -0.288*4000*4;
   pendEncPeriod = 0xFFFFFFFF;
   pendPrevDiff = 0;
   mode = Open;
@@ -292,11 +292,11 @@ int main(void)
 
 
     if (GPIOPinRead(GPIO_PORTE_BASE, LEFT) == 0) {
-      pwm = 0.37;
+      pwm = 0.4;
       writePwm(pwm);
       motEncAngle = 0;
     } else if (GPIOPinRead(GPIO_PORTE_BASE, RIGHT) == 0) {
-      pwm = -0.37;
+      pwm = -0.4;
       writePwm(pwm);
       motEncAngle = 0;
     } else if (GPIOPinRead(GPIO_PORTE_BASE, UP) == 0) {
@@ -308,13 +308,20 @@ int main(void)
       }
     }
     
-    if ((mode==Stab) && (pos > 1.2 || pos < -1.2 || pendPos < -0.125 || pendPos > 0.125)) {
-      RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15);
-      IntMasterDisable();
-      pwm = 0;
-      writePwm(pwm);
-      while (1) {
-      }
+    /* if ((mode==Stab) && (pos > 1.2 || pos < -1.2 || pendPos < -0.125 || pendPos > 0.125)) { */
+    /*   RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15); */
+    /*   IntMasterDisable(); */
+    /*   pwm = 0; */
+    /*   writePwm(pwm); */
+    /*   while (1) { */
+    /*   } */
+    /* } */
+
+    if (mode==Open) {
+      pendPos = pendEncAngle/4000.0/4;
+
+      usprintf(str, "pend = %6d",   (int)(pendPos*1000));
+      RIT128x96x4StringDraw(str , 10, 44, 15);
     }
 
     if (mode==Stab) {
@@ -334,64 +341,78 @@ int main(void)
       pos = motEncAngle/1633.0*2;
 
 #define k1 -2
-#define k2 -0.7
-#define a1 4
-#define a2 5
+#define k2 -1
+#define a1 9
+#define a2 (28*3)
 
 #define K1 (k1*a2/(1-k1)*a1)
 #define K2 (k2*a1/(1-k1)*a1)
 #define K3 (k2*a2/(1-k1)*a1)
+/* #define K1 -4 */
+/* #define K2 0 */
+/* #define K3 0 */
 
-      posSetPnt = K1 * pendPos + K2 * spd + K3 * pendSpd;
+//      posSetPnt = K1 * pendPos + K2 * spd + K3 * pendSpd;
       
 #define DEAD_ZONE 0.01
-#define START_PWM 0.34
-#define PWM_MAX 0.7
+#define START_PWM .1
+#define PWM_MAX 0.6
+
 
 #define ACC_MAX 1e-3
 
 
       posErr = posSetPnt-pos;
 
-      if (posErr < -DEAD_ZONE && posErr > DEAD_ZONE) {
-	posErr = 0;
+      if (posErr > -DEAD_ZONE && posErr < DEAD_ZONE) {
+      	posErr = 0;
       }
 
       if (posErr > 0) {
-	pwm = START_PWM;
+      	pwm = START_PWM;
       } else {
-	pwm = -START_PWM;
+      	pwm = -START_PWM;
       }
 
-      pwmInc = .3*posErr;
+      pwmInc = 1*posErr;
       if (pwmInc-prevPwmInc > ACC_MAX) {
-	pwmInc = prevPwmInc + ACC_MAX;
+      	pwmInc = prevPwmInc + ACC_MAX;
       } else if (pwmInc-prevPwmInc < -ACC_MAX) {
 
-	pwmInc = prevPwmInc-ACC_MAX;
-      } 
+      	pwmInc = prevPwmInc-ACC_MAX;
+      }
       pwm += pwmInc;
       prevPwmInc = pwmInc;
 
       if (pwm>PWM_MAX) {
-	pwm=PWM_MAX;
+      	pwm=PWM_MAX;
       } else if (pwm <-PWM_MAX) {
-	pwm=-PWM_MAX;
+      	pwm=-PWM_MAX;
       }
+
+      /* if (posErr > -DEAD_ZONE && posErr < DEAD_ZONE) { */
+      /* 	pwm = 0; */
+      /* } else { */
+      /* 	if (posErr > 0) { */
+      /* 	  pwm = PWM_MAX; */
+      /* 	} else { */
+      /* 	  pwm = -PWM_MAX; */
+      /* 	} */
+      /* } */
       writePwm(pwm);
 
-      /* counter = counter + 1; */
-      /* if (counter == 10000) { */
-      /* 	if (!flag) { */
-      /* 	  posSetPnt = 0.2; */
-      /* 	  flag = 1; */
-      /* 	} else { */
-      /* 	  posSetPnt = -.2; */
-      /* 	  flag = 0; */
-      /* 	} */
-      /* 	counter = 0; */
-      /* } */
-
+      counter = counter + 1;
+      if (counter == 10000) {
+      	if (!flag) {
+      	  posSetPnt = .5;
+      	  flag = 1;
+      	} else {
+      	  posSetPnt = -.5;
+      	  flag = 0;
+      	}
+      	counter = 0;
+      }
+                posSetPnt += 0.0001;
     }
     TOC;
   }
