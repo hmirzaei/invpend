@@ -1,5 +1,5 @@
 #define PWM_FREQ 15e3  //Hz
-#define CTRL_SAMP_TIME 1e-3 //Sec
+#define CTRL_SAMP_TIME 3e-3 //Sec
 #define PWM_MAX 0.99
 
 #define TIC   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_6, 0x40);
@@ -9,12 +9,6 @@
 #define RIGHT GPIO_PIN_3
 #define UP    GPIO_PIN_0
 #define DOWN  GPIO_PIN_1
-
-#define A1 0.3913
-#define A2 0.7827
-#define A3 0.3913
-#define B1 0.3695
-#define B2 0.1958
 
 
 #include <string.h>
@@ -209,8 +203,6 @@ void init(void) {
 
 }
 
-double u, pu, ppu, y, py, ppy;
-
 int main(void)
 {
   timerFlag = 0;
@@ -312,24 +304,9 @@ int main(void)
       }
       pendPos = pendEncAngle/4000.0/4;
 
-      if (motEncPeriod != 0) {
-	spd = 50000000.0/((double)motEncPeriod)/720;
-      } else {
-	spd = 1e-10;
-      }
-      pos = motEncAngle/720.0;
-
-
-      // filtering pendSpd using a low pass filter
-      u = pendSpd;
-      y = A1 * u + A2 * pu + A3 * ppu - B1 * py - B2 * ppy; 
-      ppu = pu;
-      pu = u;
-      ppy = py;
-      py = y;
 
       // control law
-      pwm = 100*pendPos-1.5*y;
+      pwm = 100*pendPos-1.5*pendSpd;
       if (pwm>PWM_MAX) {
       	pwm=PWM_MAX;
       } else if (pwm <-PWM_MAX) {
