@@ -37,6 +37,7 @@ static void IntDefaultHandler(void);
 // External declarations for the interrupt handlers used by the application.
 //
 //*****************************************************************************
+extern void lwIPEthernetIntHandler(void);
 extern void Timer0IntHandler(void);
 extern void GPIOBIntHandler(void);
 extern void GPIODIntHandler(void);
@@ -124,7 +125,7 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // CAN0
     IntDefaultHandler,                      // CAN1
     IntDefaultHandler,                      // CAN2
-    IntDefaultHandler,                      // Ethernet
+    lwIPEthernetIntHandler,                 // Ethernet
     IntDefaultHandler                       // Hibernate
 };
 

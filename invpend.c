@@ -11,21 +11,23 @@
 #define DOWN  GPIO_PIN_1
 
 
-#include <string.h>
 #include <math.h>
+#include <string.h>
 #include "inc/hw_ints.h"
-#include "inc/hw_types.h"
 #include "inc/hw_memmap.h"
+#include "inc/hw_nvic.h"
+#include "inc/hw_types.h"
 #include "utils/ustdlib.h"
-#include "driverlib/gpio.h"
-#include "driverlib/pwm.h"
-#include "driverlib/qei.h"
+#include "enet.h"
+#include "driverlib/adc.h"
 #include "driverlib/debug.h"
-#include "driverlib/sysctl.h"
+#include "driverlib/gpio.h"
 #include "driverlib/interrupt.h"
+#include "driverlib/pwm.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/systick.h"
 #include "driverlib/timer.h"
 #include "drivers/rit128x96x4.h"
-#include "driverlib/adc.h"
 
 
 enum Mode {
@@ -53,6 +55,7 @@ long pendEncAngle;
 long pendEncPeriod;
 int pendPrevDiff;
 
+unsigned int tcpCounter;
 
 #ifdef DEBUG
 void
@@ -77,6 +80,7 @@ void Timer0IntHandler(void)
 {
   TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
   timerFlag = 1;
+  lwIPTimer(100);
 }
 
 
@@ -146,6 +150,7 @@ void init(void) {
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
   GPIOPadConfigSet(GPIO_PORTE_BASE, LEFT|RIGHT|UP|DOWN, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
   GPIODirModeSet(GPIO_PORTE_BASE, LEFT|RIGHT|UP|DOWN, GPIO_DIR_MODE_IN);
   GPIOPinTypeGPIOOutput(GPIO_PORTB_BASE, GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6);
@@ -168,7 +173,6 @@ void init(void) {
   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_4|GPIO_PIN_5, 0x10);
   PWMOutputState(PWM0_BASE, PWM_OUT_2_BIT , true);
   PWMGenEnable(PWM0_BASE, PWM_GEN_1);
-  RIT128x96x4Init(1000000);
 
   // ADC0
   SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
@@ -197,6 +201,14 @@ void init(void) {
   TimerEnable(TIMER1_BASE, TIMER_A);
   TimerEnable(TIMER2_BASE, TIMER_A);
 
+
+  //Ethernet
+  GPIOPinTypeEthernetLED(GPIO_PORTF_BASE, GPIO_PIN_2 | GPIO_PIN_3);
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_ETH);
+  SysCtlPeripheralReset(SYSCTL_PERIPH_ETH);
+
+  //Display
+  RIT128x96x4Init(1000000);
 
   //Int
   IntMasterEnable();
@@ -227,6 +239,7 @@ int main(void)
   mode = Open;
 
   init();
+  initEnet();
 
   usprintf(str, "Started !!!");
   RIT128x96x4StringDraw(str , 10, 24, 15);
