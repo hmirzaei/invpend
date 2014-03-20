@@ -1,18 +1,22 @@
-#define PWM_MAX  0.99   // [0 to 1] 
-#define PWM_FREQ  20e3  //Hz
-#define CTRL_SAMP_TIME 0.2e-3 //Sec
-#define ENET_SAMP_TIME 100e-3 //Sec
+#define PWM_FREQ 15e3  //Hz
+#define CTRL_SAMP_TIME 3e-3 //Sec
+#define PWM_MAX 0.99
+
 #define TIC   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_6, 0x40);
 #define TOC   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_6, 0x00);
 
+#define LEFT  GPIO_PIN_2
+#define RIGHT GPIO_PIN_3
+#define UP    GPIO_PIN_0
+#define DOWN  GPIO_PIN_1
+
+
 #include <string.h>
+#include <math.h>
 #include "inc/hw_ints.h"
 #include "inc/hw_types.h"
 #include "inc/hw_memmap.h"
-#include "inc/hw_nvic.h"
 #include "utils/ustdlib.h"
-#include "utils/locator.h"
-#include "utils/lwiplib.h"
 #include "driverlib/gpio.h"
 #include "driverlib/pwm.h"
 #include "driverlib/qei.h"
@@ -22,176 +26,40 @@
 #include "driverlib/timer.h"
 #include "drivers/rit128x96x4.h"
 #include "driverlib/adc.h"
-#include "driverlib/ethernet.h"
-#include "driverlib/flash.h"
-#include "driverlib/sysctl.h"
-#include "driverlib/systick.h"
-#include "httpserver_raw/httpd.h"
 
+
+enum Mode {
+  Open = 0,
+  Stab = 1,
+} mode;
+
+volatile int timerFlag;
 
 int ulPeriod;
 char str[40];
 const int encStates[4] = {0,1,3,2};
-double pwm;
-double curr, currErr, currErrInt, currSetPnt;
-double spd, spdErr, spdErrInt, spdSetPnt;
-double pos, posErr, posSetPnt;
 
-int counter;
-int flag;
+double pwm;
+double pendSpd, pendPos, pos, spd;
+
+  
 int motEncPrevState;
 long motEncAngle;
 long motEncPeriod;
 int motPrevDiff;
 
+int pendEncPrevState;
+long pendEncAngle;
+long pendEncPeriod;
+int pendPrevDiff;
 
-//*****************************************************************************
-//
-// The error routine that is called if the driver library encounters an error.
-//
-//*****************************************************************************
+
 #ifdef DEBUG
 void
 __error__(char *pcFilename, unsigned long ulLine)
 {
 }
 #endif
-
-#define FLAG_SYSTICK            0
-static volatile unsigned long g_ulFlags;
-
-//*****************************************************************************
-//
-// External Application references.
-//
-//*****************************************************************************
-extern void httpd_init(void);
-
-
-#define JAVASCRIPT_HEADER					\
-  "<script type='text/javascript' language='JavaScript'><!--\n"
-#define JAVASCRIPT_FOOTER			\
-  "//--></script>\n"
-
-//*****************************************************************************
-//
-// Timeout for DHCP address request (in seconds).
-//
-//*****************************************************************************
-#ifndef DHCP_EXPIRE_TIMER_SECS
-#define DHCP_EXPIRE_TIMER_SECS  45
-#endif
-
-
-
-//*****************************************************************************
-//
-// Display an lwIP type IP Address.
-//
-//*****************************************************************************
-void
-DisplayIPAddress(unsigned long ipaddr, unsigned long ulCol,
-                 unsigned long ulRow)
-{
-  char pucBuf[16];
-  unsigned char *pucTemp = (unsigned char *)&ipaddr;
-  //
-  // Convert the IP Address into a string.
-  //
-  usprintf(pucBuf, "%d.%d.%d.%d", pucTemp[0], pucTemp[1], pucTemp[2],
-	   pucTemp[3]);
-
-  //
-  // Display the string.
-  //
-  RIT128x96x4StringDraw(pucBuf, ulCol, ulRow, 15);
-}
-
-//*****************************************************************************
-//
-// The interrupt handler for the SysTick interrupt.
-//
-//*****************************************************************************
-void
-Timer0IntHandler(void)
-{
-  TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
-  //
-  // Indicate that a SysTick interrupt has occurred.
-  //
-  HWREGBITW(&g_ulFlags, FLAG_SYSTICK) = 1;
-
-  //
-  // Call the lwIP timer handler.
-  //
-  lwIPTimer(100);
-}
-
-//*****************************************************************************
-//
-// Required by lwIP library to support any host-related timer functions.
-//
-//*****************************************************************************
-void
-lwIPHostTimerHandler(void)
-{
-  static unsigned long ulLastIPAddress = 0;
-  unsigned long ulIPAddress;
-
-  ulIPAddress = lwIPLocalIPAddrGet();
-
-  //
-  // If IP Address has not yet been assigned, update the display accordingly
-  //
-  if(ulIPAddress == 0)
-    {
-      static int iColumn = 6;
-
-      //
-      // Update status bar on the display.
-      //
-      /* RIT128x96x4Enable(1000000); */
-      if(iColumn < 12)
-        {
-	  RIT128x96x4StringDraw(" >", 114, 24, 15);
-	  RIT128x96x4StringDraw("< ", 0, 24, 15);
-	  RIT128x96x4StringDraw("*",iColumn, 24, 7);
-        }
-      else
-        {
-	  RIT128x96x4StringDraw(" *",iColumn - 6, 24, 7);
-        }
-
-      iColumn += 4;
-      if(iColumn > 114)
-        {
-	  iColumn = 6;
-	  RIT128x96x4StringDraw(" >", 114, 24, 15);
-        }
-      /* RIT128x96x4Disable(); */
-    }
-
-  //
-  // Check if IP address has changed, and display if it has.
-  //
-  else if(ulLastIPAddress != ulIPAddress)
-    {
-      ulLastIPAddress = ulIPAddress;
-      /* RIT128x96x4Enable(1000000); */
-      RIT128x96x4StringDraw("                       ", 0, 16, 15);
-      RIT128x96x4StringDraw("                       ", 0, 24, 15);
-      RIT128x96x4StringDraw("IP:   ", 0, 16, 15);
-      RIT128x96x4StringDraw("MASK: ", 0, 24, 15);
-      RIT128x96x4StringDraw("GW:   ", 0, 32, 15);
-      DisplayIPAddress(ulIPAddress, 36, 16);
-      ulIPAddress = lwIPLocalNetMaskGet();
-      DisplayIPAddress(ulIPAddress, 36, 24);
-      ulIPAddress = lwIPLocalGWAddrGet();
-      DisplayIPAddress(ulIPAddress, 36, 32);
-      /* RIT128x96x4Disable(); */
-    }
-}
-
     
 
 inline void writePwm(double pwm) {
@@ -204,102 +72,21 @@ inline void writePwm(double pwm) {
   }
 }
 
-inline double readCurrent() {
-  unsigned long ulADC0_Value[8];
-  int pinVal;
 
-  pinVal = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_4|GPIO_PIN_5);
-
-  ADCProcessorTrigger(ADC0_BASE, 0);
-  while(!ADCIntStatus(ADC0_BASE, 0, false)){
-  }
-  ADCIntClear(ADC0_BASE, 0);
-  ADCSequenceDataGet(ADC0_BASE, 0, ulADC0_Value);
-
-  if (pinVal == 0x10) {
-    return ulADC0_Value[0] * -0.002643849203542  +0.328681546195706;
-  } else {
-    return ulADC0_Value[0] * 0.002664294671601   +0.061590507306012;
-  }
-}
-
-//*****************************************************************************
-//
-// The interrupt handler for the first timer interrupt.
-//
-//*****************************************************************************
-void SysTickIntHandler(void)
+void Timer0IntHandler(void)
 {
-  TIC;
-
-  curr = readCurrent();
-  currErr = currSetPnt-curr;
-  currErrInt = currErrInt + currErr;
-  pwm = 0.3*currErr+ 0.06 * currErrInt;
-  if (pwm>PWM_MAX) {
-    pwm=PWM_MAX;
-  } else if (pwm <-PWM_MAX) {
-    pwm=-PWM_MAX;
-  }
-  writePwm(pwm);
-
-  if (motEncPeriod != 0) {
-    spd = 50000000.0/((double)motEncPeriod)/1633;
-  } else {
-    spd = 1e-10;
-  }
-  spdErr = spdSetPnt-spd;
-  spdErrInt = spdErrInt + spdErr;
-  if (spdErrInt > 1000) {
-    spdErrInt = 1000;
-  } else if (spdErrInt < -1000) {
-    spdErrInt = -1000;
-  }
-  currSetPnt = 0.7*spdErr;// +  0.003 * spdErrInt;
-  if (currSetPnt > 3) {
-    currSetPnt = 3;
-  } else if (currSetPnt < -3) {
-    currSetPnt = -3;
-  }
-
-  pos = motEncAngle/1633.0*2;
-  posErr = posSetPnt-pos;
-  spdSetPnt = 50*posErr;
-  if (spdSetPnt > 2) {
-    spdSetPnt = 2;
-  } else if (spdSetPnt < -2) {
-    spdSetPnt = -2;
-  }
-
-  counter = counter + 1;
-  if (counter == 2000) {
-    if (!flag) {
-      pwm = 0.3;
-      flag = 1;
-    } else {
-      pwm = 0;
-      flag = 0;
-    }
-    counter = 0;
-  }
-
-  /* IntMasterDisable(); */
-  /* IntMasterEnable(); */
-  TOC;
+  TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
+  timerFlag = 1;
 }
 
 
-
-void GPIOEIntHandler(void)
+void GPIOBIntHandler(void)
 {
   int state;
   int diff;
-  //
-  // Clear the GPIO interrupt.
-  //
-  GPIOPinIntClear(GPIO_PORTE_BASE, GPIO_PIN_2|GPIO_PIN_3);
+  GPIOPinIntClear(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3);    
 
-  state = GPIOPinRead(GPIO_PORTE_BASE, GPIO_PIN_2|GPIO_PIN_3) >> 2;
+  state = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3) >> 2;
   diff = encStates[state]-encStates[motEncPrevState];
   if (diff == 3) {
     diff = -1;
@@ -321,21 +108,55 @@ void GPIOEIntHandler(void)
   motEncPrevState = state;
   motPrevDiff = diff;
 }
+void GPIODIntHandler(void)
+{
+  int state;
+  int diff;
+  GPIOPinIntClear(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);    
+
+  state = GPIOPinRead(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5) >> 5;
+  diff = encStates[state]-encStates[pendEncPrevState];
+  if (diff == 3) {
+    diff = -1;
+  } else if (diff == -3) {
+    diff = 1;
+  }
+  pendEncAngle += diff;
+
+  if (pendPrevDiff+diff==2) {
+    pendEncPeriod = 0XFFFFFFFF-TimerValueGet64(TIMER2_BASE);
+    TimerLoadSet64(TIMER2_BASE, 0xFFFFFFFF);
+    TimerEnable(TIMER2_BASE, TIMER_A);
+  } else if (pendPrevDiff+diff==-2) {
+    pendEncPeriod = -(0XFFFFFFFF-TimerValueGet64(TIMER2_BASE));
+    TimerLoadSet64(TIMER2_BASE, 0xFFFFFFFF);
+    TimerEnable(TIMER2_BASE, TIMER_A);
+  }
+  
+  pendEncPrevState = state;
+  pendPrevDiff = diff;
+}
 
 
-void initHardware(void) {
+void init(void) {
   SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_8MHZ);
   SysCtlPWMClockSet(SYSCTL_PWMDIV_1);
 
   // GPIO
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
-  SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+  GPIOPadConfigSet(GPIO_PORTE_BASE, LEFT|RIGHT|UP|DOWN, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+  GPIODirModeSet(GPIO_PORTE_BASE, LEFT|RIGHT|UP|DOWN, GPIO_DIR_MODE_IN);
   GPIOPinTypeGPIOOutput(GPIO_PORTB_BASE, GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6);
-  GPIOPinTypeGPIOInput(GPIO_PORTE_BASE, GPIO_PIN_2|GPIO_PIN_3);
-  GPIOIntTypeSet(GPIO_PORTE_BASE, GPIO_PIN_2|GPIO_PIN_3, GPIO_BOTH_EDGES);
-  GPIOPinIntEnable(GPIO_PORTE_BASE, GPIO_PIN_2|GPIO_PIN_3);
-  IntEnable(INT_GPIOE);
+  GPIOPinTypeGPIOInput(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3);
+  GPIOPinTypeGPIOInput(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);
+  GPIOIntTypeSet(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3, GPIO_BOTH_EDGES);
+  GPIOIntTypeSet(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5, GPIO_BOTH_EDGES);
+  GPIOPinIntEnable(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3);
+  GPIOPinIntEnable(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);
+  IntEnable(INT_GPIOB);
+  IntEnable(INT_GPIOD);
 
   // PWM0
   SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM0);
@@ -347,6 +168,7 @@ void initHardware(void) {
   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_4|GPIO_PIN_5, 0x10);
   PWMOutputState(PWM0_BASE, PWM_OUT_2_BIT , true);
   PWMGenEnable(PWM0_BASE, PWM_GEN_1);
+  RIT128x96x4Init(1000000);
 
   // ADC0
   SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
@@ -358,93 +180,142 @@ void initHardware(void) {
   ADCSequenceEnable(ADC0_BASE, 0);
   ADCIntClear(ADC0_BASE, 0);
 
+
   //TIMER
   SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER0);
   SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER1);
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER2);
   TimerConfigure(TIMER0_BASE, TIMER_CFG_PERIODIC);
   TimerConfigure(TIMER1_BASE, TIMER_CFG_ONE_SHOT);
-  TimerLoadSet(TIMER0_BASE, TIMER_A, (unsigned long)(SysCtlClockGet() * ENET_SAMP_TIME));
+  TimerConfigure(TIMER2_BASE, TIMER_CFG_ONE_SHOT);
+  TimerLoadSet(TIMER0_BASE, TIMER_A, (unsigned long)(SysCtlClockGet() * CTRL_SAMP_TIME));
   TimerLoadSet64(TIMER1_BASE, 0xFFFFFFFF);
+  TimerLoadSet64(TIMER2_BASE, 0xFFFFFFFF);
   IntEnable(INT_TIMER0A);
   TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
   TimerEnable(TIMER0_BASE, TIMER_A);
   TimerEnable(TIMER1_BASE, TIMER_A);
+  TimerEnable(TIMER2_BASE, TIMER_A);
 
-  //SysTick
-  SysTickPeriodSet(SysCtlClockGet() * CTRL_SAMP_TIME);
-  SysTickEnable();
-  SysTickIntEnable();
 
-  //Ethernet
-  GPIOPinTypeEthernetLED(GPIO_PORTF_BASE, GPIO_PIN_2 | GPIO_PIN_3);
-  SysCtlPeripheralEnable(SYSCTL_PERIPH_ETH);
-  SysCtlPeripheralReset(SYSCTL_PERIPH_ETH);
-
-  //Display
-  RIT128x96x4Init(1000000);
-
-  //Interrupt
+  //Int
   IntMasterEnable();
-}
 
-initEnet() {
-  unsigned long ulUser0, ulUser1;
-  unsigned char pucMACArray[8];
-
- 
-  FlashUserGet(&ulUser0, &ulUser1);
-  if((ulUser0 == 0xffffffff) || (ulUser1 == 0xffffffff))
-    {
-      RIT128x96x4StringDraw("MAC Address", 0, 16, 15);
-      RIT128x96x4StringDraw("Not Programmed!", 0, 24, 15);
-      while(1);
-    }
-
-  pucMACArray[0] = ((ulUser0 >>  0) & 0xff);
-  pucMACArray[1] = ((ulUser0 >>  8) & 0xff);
-  pucMACArray[2] = ((ulUser0 >> 16) & 0xff);
-  pucMACArray[3] = ((ulUser1 >>  0) & 0xff);
-  pucMACArray[4] = ((ulUser1 >>  8) & 0xff);
-  pucMACArray[5] = ((ulUser1 >> 16) & 0xff);
-
-  lwIPInit(pucMACArray, 0, 0, 0, IPADDR_USE_DHCP);
-
-  LocatorInit();
-  LocatorMACAddrSet(pucMACArray);
-  LocatorAppTitleSet("EK-LM3S6965 enet_io");
-
-  httpd_init();
 }
 
 int main(void)
 {
-  currErrInt = 0;
-  currSetPnt = 0;
-  spdErrInt = 0;
-  spdSetPnt = 0;
-  posSetPnt = 0;
-  counter = 0;
-  flag = 0;
+  timerFlag = 0;
+
+  pwm = 0;
+  
+  pendPos = 0;
+  pendSpd = 0;
+  pos = 0;
+  spd = 0;
+
+
   motEncPrevState = 0;
   motEncAngle = 0;
-  motEncPeriod = 0xFFFF;
+  motEncPeriod = 0xFFFFFFFF;
   motPrevDiff = 0;
+  pendEncPrevState = 0;
+  pendEncAngle = -0.287*4000*4;
+  pendEncPeriod = 0xFFFFFFFF;
+  pendPrevDiff = 0;
 
-  initHardware();
-  initEnet();
+  mode = Open;
 
-  /* usprintf(str, "Started !!!"); */
-  /* RIT128x96x4StringDraw(str , 10, 24, 15); */
+  init();
 
-  RIT128x96x4StringDraw("Web-Based I/O Control", 0, 0, 15);
+  usprintf(str, "Started !!!");
+  RIT128x96x4StringDraw(str , 10, 24, 15);
+
   while(1){
-    /* usprintf(str, "spd = %6d",  (int)(spd*1000)); */
-    /* RIT128x96x4StringDraw(str , 10, 24, 15); */
-    /* usprintf(str, "pos = %6d",  (int)(pos*1000)); */
-    /* RIT128x96x4StringDraw(str , 10, 34, 15); */
-    /* usprintf(str, "curr = %6d",   (int)(curr*1000)); */
-    /* RIT128x96x4StringDraw(str , 10, 44, 15); */
-    /* SysCtlDelay(SysCtlClockGet() / 50); */
+
+    // wait for new control sampling time
+    while (!timerFlag) {
+    }
+    timerFlag = 0;
+    TIC;
+
+    // push button actions
+    if (GPIOPinRead(GPIO_PORTE_BASE, LEFT) == 0) {
+      pwm = 0.4;
+      writePwm(pwm);
+      motEncAngle = 0;
+    } else if (GPIOPinRead(GPIO_PORTE_BASE, RIGHT) == 0) {
+      pwm = -0.4;
+      writePwm(pwm);
+      motEncAngle = 0;
+    } else if (GPIOPinRead(GPIO_PORTE_BASE, UP) == 0) {
+      mode = Stab;
+    } else {
+      if (mode != Stab) {
+	pwm = 0;
+	writePwm(pwm);
+      }
+    }
+    
+    // safety conditions
+    if ((mode==Stab) && (pos > 3.2 || pos < -3.2 || pendPos < -0.25 || pendPos > 0.25)) {
+      RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15);
+      IntMasterDisable();
+      pwm = 0;
+      writePwm(pwm);
+      while (1) {
+      }
+    }
+
+    if (mode==Open) {
+      //updating pendulum and motor position and speed vars
+      if (pendEncPeriod != 0) {
+	pendSpd = 50000000.0/((double)pendEncPeriod)/4000/4;
+      } else {
+	pendSpd = 1e-10;
+      }
+      pendPos = pendEncAngle/4000.0/4;
+
+      if (motEncPeriod != 0) {
+	spd = 50000000.0/((double)motEncPeriod)/720;
+      } else {
+	spd = 1e-10;
+      }
+      pos = motEncAngle/720.0;
+
+      // display position and speed vars on LCD 
+      usprintf(str, "pend = %6d",   (int)(pendPos*1000));
+      RIT128x96x4StringDraw(str , 10, 14, 15);
+      usprintf(str, "pendspd=%6d",   (int)(pendSpd*1000));
+      RIT128x96x4StringDraw(str , 10, 24, 15);
+      usprintf(str, "mot = %6d",  (int)(pos*1000));
+      RIT128x96x4StringDraw(str , 10, 34, 15);
+      usprintf(str, "motspd=%6d",  (int)(spd*1000));
+      RIT128x96x4StringDraw(str , 10, 44, 15);
+    }
+
+    if (mode==Stab) {
+
+      //updating pendulum and motor position and speed vars
+      if (pendEncPeriod != 0) {
+	pendSpd = 50000000.0/((double)pendEncPeriod)/4000/4;
+      } else {
+	pendSpd = 1e-10;
+      }
+      pendPos = pendEncAngle/4000.0/4;
+
+
+      // control law
+      pwm = 100*pendPos-1.5*pendSpd;
+      if (pwm>PWM_MAX) {
+      	pwm=PWM_MAX;
+      } else if (pwm <-PWM_MAX) {
+      	pwm=-PWM_MAX;
+      }
+      writePwm(pwm);
+    }
+
+    TOC;
   }
 
 }

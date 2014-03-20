@@ -41,20 +41,14 @@ include ${ROOT}/makedefs
 # Where to find source files that do not live in this directory.
 #
 VPATH=../drivers
-VPATH+=../../../third_party/lwip-1.3.2/apps/httpserver_raw
 VPATH+=../../../utils
 
 #
 # Where to find header files that do not live in the source directory.
 #
-IPATH=.
-IPATH+=..
+IPATH=..
 IPATH+=../../..
-IPATH+=../../../third_party/lwip-1.3.2/apps
-IPATH+=../../../third_party/lwip-1.3.2/ports/stellaris/include
-IPATH+=../../../third_party/lwip-1.3.2/src/include
-IPATH+=../../../third_party/lwip-1.3.2/src/include/ipv4
-IPATH+=fs
+
 #
 # The default rule, which causes the invpend example to be built.
 #
@@ -84,10 +78,6 @@ ${COMPILER}:
 # Rules for building the invpend example.
 #
 ${COMPILER}/invpend.axf: ${COMPILER}/invpend.o
-${COMPILER}/invpend.axf: ${COMPILER}/httpd.o
-${COMPILER}/invpend.axf: ${COMPILER}/lmi_fs.o
-${COMPILER}/invpend.axf: ${COMPILER}/locator.o
-${COMPILER}/invpend.axf: ${COMPILER}/lwiplib.o
 ${COMPILER}/invpend.axf: ${COMPILER}/rit128x96x4.o
 ${COMPILER}/invpend.axf: ${COMPILER}/startup_${COMPILER}.o
 ${COMPILER}/invpend.axf: ${COMPILER}/ustdlib.o
@@ -95,7 +85,6 @@ ${COMPILER}/invpend.axf: ${ROOT}/driverlib/${COMPILER}-cm3/libdriver-cm3.a
 ${COMPILER}/invpend.axf: invpend.ld
 SCATTERgcc_invpend=invpend.ld
 ENTRY_invpend=ResetISR
-
 
 #
 # Include the automatically generated dependency files.
