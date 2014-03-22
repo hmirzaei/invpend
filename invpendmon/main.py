@@ -1,7 +1,7 @@
 __author__ = 'hamid'
 import socket
-import matplotlib.pyplot as plt  # http://matplotlib.org/
-import numpy as np
+#import matplotlib.pyplot as plt  # http://matplotlib.org/
+#import numpy as np
 import time
 
 HOST = '128.195.55.205'    # The remote host
@@ -10,17 +10,16 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((HOST, PORT))
 
 data=[]
-start = time.time()
-for i in range(10000):
+while len(data) < 15000:
     s.send('H')
-    tmpData = s.recv(1000)
-    data.extend(map(ord,list(tmpData)))
-end = time.time()
-print end - start
+    tmpData = s.recv(4000)
+    counter = (tmpData[-4]+tmpData[-3]<<8+tmpData[-2]<<16+tmpData[-1]<<24)*4
+    data.extend(map(ord,list(tmpData))[:counter])
+
+s.send('H')
+tmpData = s.recv(4000)
 s.close()
 
-data = np.array(data)
-data = data[0::2]+data[1::2]*256
 # plt.plot(data)
 # plt.show()
 

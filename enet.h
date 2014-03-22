@@ -17,4 +17,5 @@ void initEnet();
 static void close_conn (struct tcp_pcb *pcb );
 static err_t echo_recv( void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err );
 static err_t echo_accept(void *arg, struct tcp_pcb *pcb, err_t err );
+void writeMonData(long data);
 void tcp_init2( void );

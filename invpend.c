@@ -42,6 +42,7 @@ char str[40];
 const int encStates[4] = {0,1,3,2};
 
 double pwm;
+long pwmLong;
 double pendSpd, pendPos, pos, spd;
 
   
@@ -66,6 +67,7 @@ __error__(char *pcFilename, unsigned long ulLine)
     
 
 inline void writePwm(double pwm) {
+  pwmLong = (long)(ulPeriod * -pwm);
   if (pwm < 0) {
     PWMPulseWidthSet(PWM0_BASE, PWM_OUT_2, ulPeriod * -pwm);
     GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_4|GPIO_PIN_5, 0x10);
@@ -326,6 +328,11 @@ int main(void)
       	pwm=-PWM_MAX;
       }
       writePwm(pwm);
+      writeMonData(pendEncPeriod);
+      writeMonData(pendEncAngle);
+      writeMonData(motEncPeriod);
+      writeMonData(motEncAngle);
+      writeMonData(pwmLong);
     }
 
     TOC;

@@ -1,3 +1,5 @@
+#define MON_DATA_LEN 1000
+
 #include "utils/locator.h"
 #include "inc/hw_ints.h"
 #include "inc/hw_types.h"
@@ -135,7 +137,17 @@ initEnet() {
 }
 
 
-unsigned char tcp_buffer[1000];
+unsigned char tcp_buffer1[MON_DATA_LEN*sizeof(long)];
+unsigned char tcp_buffer2[MON_DATA_LEN*sizeof(long)];
+long * monWriteBuf;
+long monDataCount;
+
+inline void writeMonData(long data) {
+  if (monDataCount < MON_DATA_LEN - 1) {
+    monWriteBuf[monDataCount++] = data;
+  }
+}
+
 static void close_conn (struct tcp_pcb *pcb )
 {
   tcp_arg(pcb, NULL);
@@ -155,20 +167,22 @@ static err_t echo_recv( void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t er
       pc = (char *)p->payload;
       len =p->tot_len;
  
-      /* for( i=0; i<len; i++ ) */
-      /*   { */
-      /* 	  tcp_buffer[i] = pc[i]; */
-      /*   } */
- 
+
       if( pc[0] == 'X' )
 	close_conn( pcb );
- 
       pbuf_free( p );
- 
-      /* if( len > tcp_sndbuf( pcb ) ) */
-      /* 	len= tcp_sndbuf( pcb ); */
-       
-      tcp_write( pcb, tcp_buffer, 1000, 0 );
+
+      if (monWriteBuf == (long *)tcp_buffer1) {
+	monWriteBuf[MON_DATA_LEN-2] = monDataCount;
+	tcp_write( pcb, tcp_buffer1, MON_DATA_LEN*sizeof(long), 0 );
+	monWriteBuf = (long *)tcp_buffer2;
+	
+      } else {
+	monWriteBuf[MON_DATA_LEN-2] = monDataCount;
+	tcp_write( pcb, tcp_buffer2, MON_DATA_LEN*sizeof(long), 0 );
+	monWriteBuf = (long *)tcp_buffer1;
+      }
+      monDataCount = 0;
       tcp_sent( pcb, NULL );
     }
   else
@@ -196,7 +210,11 @@ static err_t echo_accept(void *arg, struct tcp_pcb *pcb, err_t err )
 
 void tcp_init2( void )
 {
+  
   struct tcp_pcb *tcp_pcb;
+  monWriteBuf = (long *)tcp_buffer1;
+  monDataCount = 0;
+
   tcp_pcb = tcp_new();
   tcp_bind(tcp_pcb, IP_ADDR_ANY, 23);
  
