@@ -82,7 +82,7 @@ void Timer0IntHandler(void)
 {
   TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
   timerFlag = 1;
-  lwIPTimer(100);
+  lwIPTimer(10);
 }
 
 
@@ -241,10 +241,11 @@ int main(void)
   mode = Open;
 
   init();
-  initEnet();
 
   usprintf(str, "Started !!!");
   RIT128x96x4StringDraw(str , 10, 24, 15);
+  initEnet();
+
 
   while(1){
 
@@ -252,7 +253,12 @@ int main(void)
     while (!timerFlag) {
     }
     timerFlag = 0;
-    TIC;
+    if (mode == Open){
+      TIC;
+    } else {
+      TOC;
+    }
+
 
     // push button actions
     if (GPIOPinRead(GPIO_PORTE_BASE, LEFT) == 0) {
@@ -328,14 +334,14 @@ int main(void)
       	pwm=-PWM_MAX;
       }
       writePwm(pwm);
-      writeMonData(pendEncPeriod);
-      writeMonData(pendEncAngle);
-      writeMonData(motEncPeriod);
-      writeMonData(motEncAngle);
-      writeMonData(pwmLong);
+      /* writeMonData(pendEncPeriod); */
+      /* writeMonData(pendEncAngle); */
+      /* writeMonData(motEncPeriod); */
+      /* writeMonData(motEncAngle); */
+      /* writeMonData(pwmLong); */
     }
 
-    TOC;
+
   }
 
 }

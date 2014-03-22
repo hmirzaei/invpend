@@ -61,7 +61,7 @@ IPATH+=../../../third_party/lwip-1.3.2/src/include/ipv4
 #
 all: ${COMPILER}
 all: ${COMPILER}/invpend.axf
-#all: prog 
+all: prog 
 
 #
 # The rule to load and execute the code
