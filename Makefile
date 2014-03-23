@@ -86,6 +86,7 @@ ${COMPILER}:
 #
 ${COMPILER}/invpend.axf: ${COMPILER}/invpend.o
 ${COMPILER}/invpend.axf: ${COMPILER}/enet.o
+${COMPILER}/invpend.axf: ${COMPILER}/queue.o
 ${COMPILER}/invpend.axf: ${COMPILER}/locator.o
 ${COMPILER}/invpend.axf: ${COMPILER}/lwiplib.o
 ${COMPILER}/invpend.axf: ${COMPILER}/rit128x96x4.o

@@ -1,4 +1,3 @@
-#define MON_DATA_LEN 700
 
 #include "utils/locator.h"
 #include "inc/hw_ints.h"
@@ -14,7 +13,7 @@
 #include "driverlib/sysctl.h"
 #include "driverlib/systick.h"
 #include "enet.h"
-
+#include "queue.h"
 
 extern int dhcpDone;
 
@@ -137,15 +136,12 @@ void initEnet() {
   tcp_init2();
 }
 
+unsigned char tcpBuffer[512];
 
-unsigned char tcp_buffer1[MON_DATA_LEN*sizeof(long)];
-unsigned char tcp_buffer2[MON_DATA_LEN*sizeof(long)];
-long * monWriteBuf;
-long monDataCount;
 
 inline void writeMonData(long data) {
-  if (monDataCount < MON_DATA_LEN - 1) {
-    monWriteBuf[monDataCount++] = data;
+  if (!isFull()) {
+    Enqueue (data);
   }
 }
 
@@ -156,13 +152,14 @@ static void close_conn (struct tcp_pcb *pcb )
   tcp_recv(pcb, NULL);
   tcp_close(pcb);
 }
-int writeDone;
-long counter;
+
 static err_t echo_recv( void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err )
 {
   int i;
   int len;
   char *pc;
+  int counter;
+  long tmp;
  
   if ( err == ERR_OK && p != NULL )
     {
@@ -173,39 +170,19 @@ static err_t echo_recv( void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t er
 
       if( pc[0] == 'X' )
 	close_conn( pcb );
-      pbuf_free( p );
+      pbuf_free(p);
 
-      if (monWriteBuf == (long *)tcp_buffer1) {
-	monWriteBuf[MON_DATA_LEN-2] = 200;
-	writeDone = 0;
-	counter = 0;
-	while (!writeDone) {
-	  if (MON_DATA_LEN*sizeof(long)-counter > 512) {
-	    tcp_write( pcb, tcp_buffer1+counter, 512, 0 );	    
-	    counter += 512;
-	  } else {
-	    tcp_write( pcb, tcp_buffer1+counter, MON_DATA_LEN*sizeof(long)-counter, 0 );	    
-	    writeDone = 1;
-	  }
-	}
-	monWriteBuf = (long *)tcp_buffer2;
-	
-      } else {
-	monWriteBuf[MON_DATA_LEN-2] = 300;
-	writeDone = 0;
-	counter = 0;
-	while (!writeDone) {
-	  if (MON_DATA_LEN*sizeof(long)-counter > 512) {
-	    tcp_write( pcb, tcp_buffer2+counter, 512, 0 );	    
-	    counter += 512;
-	  } else {
-	    tcp_write( pcb, tcp_buffer2+counter, MON_DATA_LEN*sizeof(long)-counter, 0 );	    
-	    writeDone = 1;
-	  }
-	}
-	monWriteBuf = (long *)tcp_buffer1;
+      counter = 1;
+      while (!isEmpty() && counter<500) {
+	tmp = Dequeue();
+	tcpBuffer[counter++] = *((unsigned char *)&tmp);
+	tcpBuffer[counter++] = *((unsigned char *)&tmp+1);
+	tcpBuffer[counter++] = *((unsigned char *)&tmp+2);
+	tcpBuffer[counter++] = *((unsigned char *)&tmp+3);
       }
-      monDataCount = 0;
+
+      tcp_write( pcb, tcpBuffer, counter, 0 );	    
+
       tcp_sent( pcb, NULL );
     }
   else
@@ -233,10 +210,8 @@ static err_t echo_accept(void *arg, struct tcp_pcb *pcb, err_t err )
 
 void tcp_init2( void )
 {
-  
   struct tcp_pcb *tcp_pcb;
-  monWriteBuf = (long *)tcp_buffer1;
-  monDataCount = 0;
+  InitQueue();
 
   tcp_pcb = tcp_new();
   tcp_bind(tcp_pcb, IP_ADDR_ANY, 23);

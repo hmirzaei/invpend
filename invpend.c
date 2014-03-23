@@ -217,9 +217,10 @@ void init(void) {
   IntMasterEnable();
 
 }
-
+long counter;
 int main(void)
 {
+  counter = 3;
   timerFlag = 0;
   dhcpDone = 0;
   pwm = 0;
@@ -273,14 +274,14 @@ int main(void)
     }
     
     // safety conditions
-    if ((mode==Stab) && (pos > 3.2 || pos < -3.2 || pendPos < -0.25 || pendPos > 0.25)) {
-      RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15);
-      IntMasterDisable();
-      pwm = 0;
-      writePwm(pwm);
-      while (1) {
-      }
-    }
+    /* if ((mode==Stab) && (pos > 3.2 || pos < -3.2 || pendPos < -0.25 || pendPos > 0.25)) { */
+    /*   RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15); */
+    /*   IntMasterDisable(); */
+    /*   pwm = 0; */
+    /*   writePwm(pwm); */
+    /*   while (1) { */
+    /*   } */
+    /* } */
 
     if (mode==Open) {
       //updating pendulum and motor position and speed vars
@@ -330,11 +331,17 @@ int main(void)
       	pwm=-PWM_MAX;
       }
       writePwm(pwm);
-      writeMonData(pendEncPeriod);
-      writeMonData(pendEncAngle);
-      writeMonData(motEncPeriod);
-      writeMonData(motEncAngle);
-      writeMonData(pwmLong);
+      /* writeMonData(pendEncPeriod); */
+      /* writeMonData(pendEncAngle); */
+      /* writeMonData(motEncPeriod); */
+      /* writeMonData(motEncAngle); */
+      /* writeMonData(pwmLong); */
+      writeMonData(counter); 
+      writeMonData(counter*2);
+      writeMonData(counter*3);
+      writeMonData(counter*4);
+      writeMonData(counter*5);
+      counter++;
     }
 
 
