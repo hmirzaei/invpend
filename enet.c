@@ -1,4 +1,4 @@
-#define MON_DATA_LEN 100
+#define MON_DATA_LEN 700
 
 #include "utils/locator.h"
 #include "inc/hw_ints.h"
@@ -16,7 +16,7 @@
 #include "enet.h"
 
 
-
+extern int dhcpDone;
 
 //*****************************************************************************
 //
@@ -49,61 +49,62 @@ DisplayIPAddress(unsigned long ipaddr, unsigned long ulCol,
 void
 lwIPHostTimerHandler(void)
 {
-  /* static unsigned long ulLastIPAddress = 0; */
-  /* unsigned long ulIPAddress; */
+  static unsigned long ulLastIPAddress = 0;
+  unsigned long ulIPAddress;
 
-  /* ulIPAddress = lwIPLocalIPAddrGet(); */
+  ulIPAddress = lwIPLocalIPAddrGet();
 
-  /* // */
-  /* // If IP Address has not yet been assigned, update the display accordingly */
-  /* // */
-  /* if(ulIPAddress == 0) */
-  /*   { */
-  /*     static int iColumn = 6; */
+  //
+  // If IP Address has not yet been assigned, update the display accordingly
+  //
+  if(ulIPAddress == 0)
+    {
+      static int iColumn = 6;
 
-  /*     // */
-  /*     // Update status bar on the display. */
-  /*     // */
-  /*     /\* RIT128x96x4Enable(1000000); *\/ */
-  /*     if(iColumn < 12) */
-  /*       { */
-  /* 	  RIT128x96x4StringDraw(" >", 114, 24, 15); */
-  /* 	  RIT128x96x4StringDraw("< ", 0, 24, 15); */
-  /* 	  RIT128x96x4StringDraw("*",iColumn, 24, 7); */
-  /*       } */
-  /*     else */
-  /*       { */
-  /* 	  RIT128x96x4StringDraw(" *",iColumn - 6, 24, 7); */
-  /*       } */
+      //
+      // Update status bar on the display.
+      //
+      /* RIT128x96x4Enable(1000000); */
+      if(iColumn < 12)
+        {
+  	  RIT128x96x4StringDraw(" >", 114, 24, 15);
+  	  RIT128x96x4StringDraw("< ", 0, 24, 15);
+  	  RIT128x96x4StringDraw("*",iColumn, 24, 7);
+        }
+      else
+        {
+  	  RIT128x96x4StringDraw(" *",iColumn - 6, 24, 7);
+        }
 
-  /*     iColumn += 4; */
-  /*     if(iColumn > 114) */
-  /*       { */
-  /* 	  iColumn = 6; */
-  /* 	  RIT128x96x4StringDraw(" >", 114, 24, 15); */
-  /*       } */
-  /*     /\* RIT128x96x4Disable(); *\/ */
-  /*   } */
+      iColumn += 4;
+      if(iColumn > 114)
+        {
+  	  iColumn = 6;
+  	  RIT128x96x4StringDraw(" >", 114, 24, 15);
+        }
+      /* RIT128x96x4Disable(); */
+    }
 
-  /* // */
-  /* // Check if IP address has changed, and display if it has. */
-  /* // */
-  /* else if(ulLastIPAddress != ulIPAddress) */
-  /*   { */
-  /*     ulLastIPAddress = ulIPAddress; */
-  /*     /\* RIT128x96x4Enable(1000000); *\/ */
-  /*     RIT128x96x4StringDraw("                       ", 0, 16, 15); */
-  /*     RIT128x96x4StringDraw("                       ", 0, 24, 15); */
-  /*     RIT128x96x4StringDraw("IP:   ", 0, 16, 15); */
-  /*     RIT128x96x4StringDraw("MASK: ", 0, 24, 15); */
-  /*     RIT128x96x4StringDraw("GW:   ", 0, 32, 15); */
-  /*     DisplayIPAddress(ulIPAddress, 36, 16); */
-  /*     ulIPAddress = lwIPLocalNetMaskGet(); */
-  /*     DisplayIPAddress(ulIPAddress, 36, 24); */
-  /*     ulIPAddress = lwIPLocalGWAddrGet(); */
-  /*     DisplayIPAddress(ulIPAddress, 36, 32); */
-  /*     /\* RIT128x96x4Disable(); *\/ */
-  /*   } */
+  //
+  // Check if IP address has changed, and display if it has.
+  //
+  else if(ulLastIPAddress != ulIPAddress)
+    {
+      dhcpDone = 1;
+      ulLastIPAddress = ulIPAddress;
+      /* RIT128x96x4Enable(1000000); */
+      RIT128x96x4StringDraw("                       ", 0, 16, 15);
+      RIT128x96x4StringDraw("                       ", 0, 24, 15);
+      RIT128x96x4StringDraw("IP:   ", 0, 16, 15);
+      RIT128x96x4StringDraw("MASK: ", 0, 24, 15);
+      RIT128x96x4StringDraw("GW:   ", 0, 32, 15);
+      DisplayIPAddress(ulIPAddress, 36, 16);
+      ulIPAddress = lwIPLocalNetMaskGet();
+      DisplayIPAddress(ulIPAddress, 36, 24);
+      ulIPAddress = lwIPLocalGWAddrGet();
+      DisplayIPAddress(ulIPAddress, 36, 32);
+      /* RIT128x96x4Disable(); */
+    }
 }
 
 
@@ -155,6 +156,8 @@ static void close_conn (struct tcp_pcb *pcb )
   tcp_recv(pcb, NULL);
   tcp_close(pcb);
 }
+int writeDone;
+long counter;
 static err_t echo_recv( void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err )
 {
   int i;
@@ -173,13 +176,33 @@ static err_t echo_recv( void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t er
       pbuf_free( p );
 
       if (monWriteBuf == (long *)tcp_buffer1) {
-	monWriteBuf[MON_DATA_LEN-2] = monDataCount;
-	tcp_write( pcb, tcp_buffer1, MON_DATA_LEN*sizeof(long), 0 );
+	monWriteBuf[MON_DATA_LEN-2] = 200;
+	writeDone = 0;
+	counter = 0;
+	while (!writeDone) {
+	  if (MON_DATA_LEN*sizeof(long)-counter > 512) {
+	    tcp_write( pcb, tcp_buffer1+counter, 512, 0 );	    
+	    counter += 512;
+	  } else {
+	    tcp_write( pcb, tcp_buffer1+counter, MON_DATA_LEN*sizeof(long)-counter, 0 );	    
+	    writeDone = 1;
+	  }
+	}
 	monWriteBuf = (long *)tcp_buffer2;
 	
       } else {
-	monWriteBuf[MON_DATA_LEN-2] = monDataCount;
-	tcp_write( pcb, tcp_buffer2, MON_DATA_LEN*sizeof(long), 0 );
+	monWriteBuf[MON_DATA_LEN-2] = 300;
+	writeDone = 0;
+	counter = 0;
+	while (!writeDone) {
+	  if (MON_DATA_LEN*sizeof(long)-counter > 512) {
+	    tcp_write( pcb, tcp_buffer2+counter, 512, 0 );	    
+	    counter += 512;
+	  } else {
+	    tcp_write( pcb, tcp_buffer2+counter, MON_DATA_LEN*sizeof(long)-counter, 0 );	    
+	    writeDone = 1;
+	  }
+	}
 	monWriteBuf = (long *)tcp_buffer1;
       }
       monDataCount = 0;
@@ -211,13 +234,13 @@ static err_t echo_accept(void *arg, struct tcp_pcb *pcb, err_t err )
 void tcp_init2( void )
 {
   
-  /* struct tcp_pcb *tcp_pcb; */
-  /* monWriteBuf = (long *)tcp_buffer1; */
-  /* monDataCount = 0; */
+  struct tcp_pcb *tcp_pcb;
+  monWriteBuf = (long *)tcp_buffer1;
+  monDataCount = 0;
 
-  /* tcp_pcb = tcp_new(); */
-  /* tcp_bind(tcp_pcb, IP_ADDR_ANY, 23); */
+  tcp_pcb = tcp_new();
+  tcp_bind(tcp_pcb, IP_ADDR_ANY, 23);
  
-  /* tcp_pcb = tcp_listen( tcp_pcb ); */
-  /* tcp_accept( tcp_pcb, echo_accept ); */
+  tcp_pcb = tcp_listen( tcp_pcb );
+  tcp_accept( tcp_pcb, echo_accept );
 }

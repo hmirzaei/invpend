@@ -36,6 +36,7 @@ enum Mode {
 } mode;
 
 volatile int timerFlag;
+volatile int dhcpDone;
 
 int ulPeriod;
 char str[40];
@@ -220,7 +221,7 @@ void init(void) {
 int main(void)
 {
   timerFlag = 0;
-
+  dhcpDone = 0;
   pwm = 0;
   
   pendPos = 0;
@@ -242,8 +243,6 @@ int main(void)
 
   init();
 
-  usprintf(str, "Started !!!");
-  RIT128x96x4StringDraw(str , 10, 24, 15);
   initEnet();
 
 
@@ -253,11 +252,6 @@ int main(void)
     while (!timerFlag) {
     }
     timerFlag = 0;
-    if (mode == Open){
-      TIC;
-    } else {
-      TOC;
-    }
 
 
     // push button actions
@@ -305,14 +299,16 @@ int main(void)
       pos = motEncAngle/720.0;
 
       // display position and speed vars on LCD 
-      usprintf(str, "pend = %6d",   (int)(pendPos*1000));
-      RIT128x96x4StringDraw(str , 10, 14, 15);
-      usprintf(str, "pendspd=%6d",   (int)(pendSpd*1000));
-      RIT128x96x4StringDraw(str , 10, 24, 15);
-      usprintf(str, "mot = %6d",  (int)(pos*1000));
-      RIT128x96x4StringDraw(str , 10, 34, 15);
-      usprintf(str, "motspd=%6d",  (int)(spd*1000));
-      RIT128x96x4StringDraw(str , 10, 44, 15);
+      if (dhcpDone) {
+	usprintf(str, "pend = %6d",   (int)(pendPos*1000));
+	RIT128x96x4StringDraw(str , 10, 54, 15);
+	usprintf(str, "pendspd=%6d",   (int)(pendSpd*1000));
+	RIT128x96x4StringDraw(str , 10, 64, 15);
+	usprintf(str, "mot = %6d",  (int)(pos*1000));
+	RIT128x96x4StringDraw(str , 10, 74, 15);
+	usprintf(str, "motspd=%6d",  (int)(spd*1000));
+	RIT128x96x4StringDraw(str , 10, 84, 15);
+      }
     }
 
     if (mode==Stab) {
@@ -334,11 +330,11 @@ int main(void)
       	pwm=-PWM_MAX;
       }
       writePwm(pwm);
-      /* writeMonData(pendEncPeriod); */
-      /* writeMonData(pendEncAngle); */
-      /* writeMonData(motEncPeriod); */
-      /* writeMonData(motEncAngle); */
-      /* writeMonData(pwmLong); */
+      writeMonData(pendEncPeriod);
+      writeMonData(pendEncAngle);
+      writeMonData(motEncPeriod);
+      writeMonData(motEncAngle);
+      writeMonData(pwmLong);
     }
 
 
