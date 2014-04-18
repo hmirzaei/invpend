@@ -1,6 +1,7 @@
-#define PWM_FREQ 15e3  //Hz
+#define PWM_FREQ 1600  //Hz
 #define CTRL_SAMP_TIME 3e-3 //Sec
-#define PWM_MAX 0.99
+#define PWM_MIN (0.6/20.0)
+#define PWM_MAX (2.6/20.0)
 
 #define TIC   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_6, 0x40);
 #define TOC   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_6, 0x00);
@@ -147,7 +148,7 @@ void GPIODIntHandler(void)
 
 void init(void) {
   SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_8MHZ);
-  SysCtlPWMClockSet(SYSCTL_PWMDIV_1);
+  SysCtlPWMClockSet(SYSCTL_PWMDIV_32);
 
   // GPIO
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
@@ -236,7 +237,7 @@ int main(void)
   motEncPeriod = 0xFFFFFFFF;
   motPrevDiff = 0;
   pendEncPrevState = 0;
-  pendEncAngle = -0.287*4000*4;
+  pendEncAngle = -0.289*4000*4;
   pendEncPeriod = 0xFFFFFFFF;
   pendPrevDiff = 0;
 
@@ -257,11 +258,11 @@ int main(void)
 
     // push button actions
     if (GPIOPinRead(GPIO_PORTE_BASE, LEFT) == 0) {
-      pwm = 0.4;
+      pwm = .6/20.0;
       writePwm(pwm);
       motEncAngle = 0;
     } else if (GPIOPinRead(GPIO_PORTE_BASE, RIGHT) == 0) {
-      pwm = -0.4;
+      pwm = 1.6/20.0;
       writePwm(pwm);
       motEncAngle = 0;
     } else if (GPIOPinRead(GPIO_PORTE_BASE, UP) == 0) {
@@ -274,7 +275,7 @@ int main(void)
     }
     
     //safety conditions
-    if ((mode==Stab) && (pos > 3.2 || pos < -3.2 || pendPos < -0.25 || pendPos > 0.25)) {
+    if ((mode==Stab) && (pendPos < -0.25 || pendPos > 0.25)) {
       RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15);
       IntMasterDisable();
       pwm = 0;
@@ -330,11 +331,12 @@ int main(void)
       pos = motEncAngle/720.0;
 
       // control law
-      pwm = 100*pendPos-1.5*pendSpd;
+      pwm = 4.0*(100*pendPos - 1 * pendSpd);//-0.8*pendSpd);
+      pwm = 1.6/20.0 - pwm*4.0/20.0;
       if (pwm>PWM_MAX) {
-      	pwm=PWM_MAX;
-      } else if (pwm <-PWM_MAX) {
-      	pwm=-PWM_MAX;
+      	pwm = PWM_MAX;
+      } else if (pwm <PWM_MIN) {
+      	pwm = PWM_MIN;
       }
       writePwm(pwm);
       writeMonData(pendEncPeriod);
