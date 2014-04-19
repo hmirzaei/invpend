@@ -39,7 +39,6 @@ static void IntDefaultHandler(void);
 //*****************************************************************************
 extern void lwIPEthernetIntHandler(void);
 extern void Timer0IntHandler(void);
-extern void GPIOBIntHandler(void);
 extern void GPIODIntHandler(void);
 
 
@@ -84,7 +83,7 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // The PendSV handler
     IntDefaultHandler,                      // The SysTick handler
     IntDefaultHandler,                      // GPIO Port A
-    GPIOBIntHandler,                        // GPIO Port B
+    IntDefaultHandler,                      // GPIO Port B
     IntDefaultHandler,                      // GPIO Port C
     GPIODIntHandler,                        // GPIO Port D
     IntDefaultHandler,                      // GPIO Port E

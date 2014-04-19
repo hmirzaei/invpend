@@ -1,3 +1,4 @@
+#define PI 3.1415
 #define PWM_FREQ 1600  //Hz
 #define CTRL_SAMP_TIME 3e-3 //Sec
 #define PWM_MIN (0.6/20.0)
@@ -47,11 +48,8 @@ double pwm;
 long pwmLong;
 double pendSpd, pendPos, pos, spd;
 
+double alpha_dd, alpha_d, alpha;
   
-int motEncPrevState;
-long motEncAngle;
-long motEncPeriod;
-int motPrevDiff;
 
 int pendEncPrevState;
 long pendEncAngle;
@@ -88,34 +86,6 @@ void Timer0IntHandler(void)
 }
 
 
-void GPIOBIntHandler(void)
-{
-  int state;
-  int diff;
-  GPIOPinIntClear(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3);    
-
-  state = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3) >> 2;
-  diff = encStates[state]-encStates[motEncPrevState];
-  if (diff == 3) {
-    diff = -1;
-  } else if (diff == -3) {
-    diff = 1;
-  }
-  motEncAngle += diff;
-
-  if (motPrevDiff+diff==2) {
-    motEncPeriod = 0XFFFFFFFF-TimerValueGet64(TIMER1_BASE);
-    TimerLoadSet64(TIMER1_BASE, 0xFFFFFFFF);
-    TimerEnable(TIMER1_BASE, TIMER_A);
-  } else if (motPrevDiff+diff==-2) {
-    motEncPeriod = -(0XFFFFFFFF-TimerValueGet64(TIMER1_BASE));
-    TimerLoadSet64(TIMER1_BASE, 0xFFFFFFFF);
-    TimerEnable(TIMER1_BASE, TIMER_A);
-  }
-  
-  motEncPrevState = state;
-  motPrevDiff = diff;
-}
 void GPIODIntHandler(void)
 {
   int state;
@@ -123,7 +93,7 @@ void GPIODIntHandler(void)
   GPIOPinIntClear(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);    
 
   state = GPIOPinRead(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5) >> 5;
-  diff = encStates[state]-encStates[pendEncPrevState];
+  diff = -encStates[state]+encStates[pendEncPrevState];
   if (diff == 3) {
     diff = -1;
   } else if (diff == -3) {
@@ -158,13 +128,9 @@ void init(void) {
   GPIOPadConfigSet(GPIO_PORTE_BASE, LEFT|RIGHT|UP|DOWN, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
   GPIODirModeSet(GPIO_PORTE_BASE, LEFT|RIGHT|UP|DOWN, GPIO_DIR_MODE_IN);
   GPIOPinTypeGPIOOutput(GPIO_PORTB_BASE, GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6);
-  GPIOPinTypeGPIOInput(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3);
   GPIOPinTypeGPIOInput(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);
-  GPIOIntTypeSet(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3, GPIO_BOTH_EDGES);
   GPIOIntTypeSet(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5, GPIO_BOTH_EDGES);
-  GPIOPinIntEnable(GPIO_PORTB_BASE, GPIO_PIN_2|GPIO_PIN_3);
   GPIOPinIntEnable(GPIO_PORTD_BASE, GPIO_PIN_6|GPIO_PIN_5);
-  IntEnable(INT_GPIOB);
   IntEnable(INT_GPIOD);
 
   // PWM0
@@ -218,30 +184,26 @@ void init(void) {
   IntMasterEnable();
 
 }
-long counter;
+
+
 int main(void)
 {
-  counter = 3;
   timerFlag = 0;
   dhcpDone = 0;
   pwm = 0;
   
   pendPos = 0;
   pendSpd = 0;
-  pos = 0;
-  spd = 0;
 
 
-  motEncPrevState = 0;
-  motEncAngle = 0;
-  motEncPeriod = 0xFFFFFFFF;
-  motPrevDiff = 0;
   pendEncPrevState = 0;
-  pendEncAngle = -0.289*4000*4;
+  pendEncAngle = 0.289*4000*4;
   pendEncPeriod = 0xFFFFFFFF;
   pendPrevDiff = 0;
 
   mode = Open;
+
+  alpha = alpha_d = alpha_dd = 0;
 
   init();
 
@@ -260,11 +222,9 @@ int main(void)
     if (GPIOPinRead(GPIO_PORTE_BASE, LEFT) == 0) {
       pwm = .6/20.0;
       writePwm(pwm);
-      motEncAngle = 0;
     } else if (GPIOPinRead(GPIO_PORTE_BASE, RIGHT) == 0) {
       pwm = 1.6/20.0;
       writePwm(pwm);
-      motEncAngle = 0;
     } else if (GPIOPinRead(GPIO_PORTE_BASE, UP) == 0) {
       mode = Stab;
     } else {
@@ -293,12 +253,6 @@ int main(void)
       }
       pendPos = pendEncAngle/4000.0/4;
 
-      if (motEncPeriod != 0) {
-	spd = 50000000.0/((double)motEncPeriod)/720;
-      } else {
-	spd = 1e-10;
-      }
-      pos = motEncAngle/720.0;
 
       // display position and speed vars on LCD 
       if (dhcpDone) {
@@ -314,44 +268,53 @@ int main(void)
     }
 
     if (mode==Stab) {
-
+      TIC;
       //updating pendulum and motor position and speed vars
       if (pendEncPeriod != 0) {
-	pendSpd = 50000000.0/((double)pendEncPeriod)/4000/4;
+	pendSpd = 2*PI*50000000.0/((double)pendEncPeriod)/4000/4;
       } else {
 	pendSpd = 1e-10;
       }
-      pendPos = pendEncAngle/4000.0/4;
+      pendPos = 2*PI*pendEncAngle/4000.0/4;
 
-      if (motEncPeriod != 0) {
-	spd = 50000000.0/((double)motEncPeriod)/720;
-      } else {
-	spd = 1e-10;
-      }
-      pos = motEncAngle/720.0;
+      // control la
+#define K1    -4.4721
+#define K2   377.9678
+#define K3    61.9619
+#define V_MAX 4.5
+#define P_MAX (PI/2)
 
-      // control law
-      pwm = 4.0*(100*pendPos - 1 * pendSpd);//-0.8*pendSpd);
-      pwm = 1.6/20.0 - pwm*4.0/20.0;
+
+      alpha_dd = -K1 * alpha_d -K2 * pendPos -K3 * pendSpd;
+      
+      alpha_d = alpha_d + alpha_dd * 3e-3;
+      if (alpha_d > V_MAX) 
+	alpha_d = V_MAX;
+      else if (alpha_d < -V_MAX) 
+	alpha_d = -V_MAX;
+	
+      alpha = alpha + alpha_d * 3e-3;
+      if (alpha > P_MAX) 
+	alpha = P_MAX;
+      else if (alpha < -P_MAX) 
+	alpha = -P_MAX;
+
+
+      pwm = 1.6/20.0 - alpha/2/PI*4.0/20.0;
       if (pwm>PWM_MAX) {
       	pwm = PWM_MAX;
       } else if (pwm <PWM_MIN) {
       	pwm = PWM_MIN;
       }
+
       writePwm(pwm);
       writeMonData(pendEncPeriod);
       writeMonData(pendEncAngle);
-      writeMonData(motEncPeriod);
-      writeMonData(motEncAngle);
+      writeMonData(0);
+      writeMonData(0);
       writeMonData(pwmLong);
-      /* writeMonData(counter);  */
-      /* writeMonData(counter*2); */
-      /* writeMonData(counter*3); */
-      /* writeMonData(counter*4); */
-      /* writeMonData(counter*5); */
-      counter++;
+      TOC;
     }
-
 
   }
 
