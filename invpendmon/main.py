@@ -8,9 +8,9 @@ import sys
 import math
 import pickle
 
-REC_LEN = 40000
+REC_LEN = 400000
 
-HOST = '128.195.55.252'  # The remote host5
+HOST = '128.195.55.249'  # The remote host5
 PORT = 23  # The same port as used by the server
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 print("trying ...")
@@ -30,8 +30,8 @@ while len(data) < REC_LEN:
 
 print("max count: ", max(counts))
 print(counts)
-plt.plot(counts)
-plt.show()
+#plt.plot(counts)
+#plt.show()
 
 print("done")
 print(len(data))
@@ -59,47 +59,28 @@ data2[:,0] = 50000000.0/data2[:,0]/4000/4
 data2[:,1] = data2[:,1]/4000.0/4
 data2[:,2] = 50000000.0/data2[:,2]/720
 data2[:,3] = data2[:,3]/720.0
-data2[:,4] = -data2[:,4]/3333.33
+data2[:,4] = -data2[:,4]/ 31250.0
 
 t = np.array(range(data2.shape[0]))*3e-3
 
-plt.subplot(5,1,1)
+plt.subplot(3,1,1)
 plt.plot(t,data2[:,1]*360)
 plt.title('Pendulum Angle')
-plt.title('Pendulum Angular Speed')
-plt.ylabel('deg/s')
 plt.grid()
 plt.ylabel('deg')
 
-plt.subplot(5,1,2)
+plt.subplot(3,1,2)
 plt.plot(t,data2[:,0]*360)
 plt.title('Pendulum Angular Speed')
 plt.grid()
 plt.ylabel('deg/s')
 
-plt.subplot(5,1,3)
-plt.plot(t,data2[:,3]*360)
-plt.title('Motor Angle')
-plt.grid()
-plt.ylabel('deg')
-
-
-plt.subplot(5,1,4)
-plt.plot(t,data2[:,2]*360)
-plt.title('Motor Angular Speed')
-plt.grid()
-plt.ylabel('deg/s')
-
-plt.subplot(5,1,5)
-plt.plot(t,data2[:,4]*100)
-plt.title('PWM Command')
+plt.subplot(3,1,3)
+plt.plot(t,(1.6/20.0-data2[:,4])*360/4.0*20)
+plt.title('Servo Angle Command')
 plt.grid()
 plt.ylabel('%')
 
-# a= 100*data2[:,1]-1.5*data2[:,0]
-# a=(a>1).choose(a,1)
-# a=(a<-1).choose(a,-1)
-# plt.plot(t,a*100)
 
 plt.show()
 
