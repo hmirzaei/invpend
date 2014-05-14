@@ -278,22 +278,27 @@ int main(void)
       pendPos = 2*PI*pendEncAngle/4000.0/4;
 
       // control la
-#define K1    -4.4721
-#define K2   377.9678
-#define K3    61.9619
+
+   	    	  
+#define K1   -1.0000
+#define K2   -2.0515
+#define K3  283.5801
+#define K4   45.2931
+	  	  
+
 #define V_MAX 4.5
 #define P_MAX (PI/2)
 
 
-      alpha_dd = -K1 * alpha_d -K2 * pendPos -K3 * pendSpd;
+      alpha_dd = -K1 * alpha + -K2 * alpha_d -K3 * pendPos -K4 * pendSpd;
       
-      alpha_d = alpha_d + alpha_dd * 3e-3;
+      alpha_d = alpha_d + alpha_dd * CTRL_SAMP_TIME;
       if (alpha_d > V_MAX) 
 	alpha_d = V_MAX;
       else if (alpha_d < -V_MAX) 
 	alpha_d = -V_MAX;
 	
-      alpha = alpha + alpha_d * 3e-3;
+      alpha = alpha + alpha_d * CTRL_SAMP_TIME;
       if (alpha > P_MAX) 
 	alpha = P_MAX;
       else if (alpha < -P_MAX) 
