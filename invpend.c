@@ -218,9 +218,11 @@ void init(void) {
 
 }
 long counter;
+int flag;
 int main(void)
 {
   counter = 3;
+  flag = 0;
   timerFlag = 0;
   dhcpDone = 0;
   pwm = 0;
@@ -257,11 +259,11 @@ int main(void)
 
     // push button actions
     if (GPIOPinRead(GPIO_PORTE_BASE, LEFT) == 0) {
-      pwm = 0.4;
+      pwm = 0.99;
       writePwm(pwm);
       motEncAngle = 0;
     } else if (GPIOPinRead(GPIO_PORTE_BASE, RIGHT) == 0) {
-      pwm = -0.4;
+      pwm = -0.99;
       writePwm(pwm);
       motEncAngle = 0;
     } else if (GPIOPinRead(GPIO_PORTE_BASE, UP) == 0) {
@@ -273,15 +275,15 @@ int main(void)
       }
     }
     
-    //safety conditions
-    if ((mode==Stab) && (pos > 3.2 || pos < -3.2 || pendPos < -0.25 || pendPos > 0.25)) {
-      RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15);
-      IntMasterDisable();
-      pwm = 0;
-      writePwm(pwm);
-      while (1) {
-      }
-    }
+    /* //safety conditions */
+    /* if ((mode==Stab) && (pos > 3.2 || pos < -3.2 || pendPos < -0.25 || pendPos > 0.25)) { */
+    /*   RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15); */
+    /*   IntMasterDisable(); */
+    /*   pwm = 0; */
+    /*   writePwm(pwm); */
+    /*   while (1) { */
+    /*   } */
+    /* } */
 
     if (mode==Open) {
       //updating pendulum and motor position and speed vars
@@ -329,13 +331,26 @@ int main(void)
       }
       pos = motEncAngle/720.0;
 
-      // control law
-      pwm = 100*pendPos-1.5*pendSpd;
-      if (pwm>PWM_MAX) {
-      	pwm=PWM_MAX;
-      } else if (pwm <-PWM_MAX) {
-      	pwm=-PWM_MAX;
+      /* // control law */
+      /* pwm = 100*pendPos-1.5*pendSpd; */
+      /* if (pwm>PWM_MAX) { */
+      /* 	pwm=PWM_MAX; */
+      /* } else if (pwm <-PWM_MAX) { */
+      /* 	pwm=-PWM_MAX; */
+      /* } */
+      counter = counter + 1;
+      if (counter == 1000) {
+	if (!flag) {
+	  pwm = 0.99;
+	  flag = 1;
+	} else {
+	  pwm = -0.99;
+	  flag = 0;
+	}
+	counter = 0;
       }
+
+      counter++;
       writePwm(pwm);
       writeMonData(pendEncPeriod);
       writeMonData(pendEncAngle);
@@ -347,7 +362,6 @@ int main(void)
       /* writeMonData(counter*3); */
       /* writeMonData(counter*4); */
       /* writeMonData(counter*5); */
-      counter++;
     }
 
 
