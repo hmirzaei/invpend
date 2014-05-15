@@ -1,8 +1,9 @@
 #define PI 3.1415
-#define PWM_FREQ 1600  //Hz
-#define CTRL_SAMP_TIME 3e-3 //Sec
-#define PWM_MIN (0.6/20.0)
-#define PWM_MAX (2.6/20.0)
+#define PWM_FREQ (3*1600)  //Hz
+#define CTRL_SAMP_TIME 2e-3 //Sec
+#define RC_PW (32.0/PWM_FREQ*1000)
+#define PWM_MIN (0.6/RC_PW)
+#define PWM_MAX (2.6/RC_PW)
 
 #define TIC   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_6, 0x40);
 #define TOC   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_6, 0x00);
@@ -220,13 +221,15 @@ int main(void)
 
     // push button actions
     if (GPIOPinRead(GPIO_PORTE_BASE, LEFT) == 0) {
-      pwm = .6/20.0;
+      pwm = .6/RC_PW;
       writePwm(pwm);
     } else if (GPIOPinRead(GPIO_PORTE_BASE, RIGHT) == 0) {
-      pwm = 1.6/20.0;
+      pwm = 1.6/RC_PW;
       writePwm(pwm);
     } else if (GPIOPinRead(GPIO_PORTE_BASE, UP) == 0) {
       mode = Stab;
+    } else if (GPIOPinRead(GPIO_PORTE_BASE, DOWN) == 0) {
+      pendEncAngle = 0;
     } else {
       if (mode != Stab) {
 	pwm = 0;
@@ -305,7 +308,7 @@ int main(void)
 	alpha = -P_MAX;
 
 
-      pwm = 1.6/20.0 - alpha/2/PI*4.0/20.0;
+      pwm = 1.6/RC_PW - alpha/2/PI*4.0/RC_PW;
       if (pwm>PWM_MAX) {
       	pwm = PWM_MAX;
       } else if (pwm <PWM_MIN) {
