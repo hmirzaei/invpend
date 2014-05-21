@@ -1,6 +1,7 @@
 #define PWM_FREQ 15e3  //Hz
 #define CTRL_SAMP_TIME 3e-3 //Sec
 #define PWM_MAX 0.99
+#define PI 3.14159265359
 
 #define TIC   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_6, 0x40);
 #define TOC   GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_6, 0x00);
@@ -217,12 +218,9 @@ void init(void) {
   IntMasterEnable();
 
 }
-long counter;
-int flag;
+
 int main(void)
 {
-  counter = 3;
-  flag = 0;
   timerFlag = 0;
   dhcpDone = 0;
   pwm = 0;
@@ -245,7 +243,7 @@ int main(void)
   mode = Open;
 
   init();
-
+  initController();
   initEnet();
 
 
@@ -275,15 +273,15 @@ int main(void)
       }
     }
     
-    /* //safety conditions */
-    /* if ((mode==Stab) && (pos > 3.2 || pos < -3.2 || pendPos < -0.25 || pendPos > 0.25)) { */
-    /*   RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15); */
-    /*   IntMasterDisable(); */
-    /*   pwm = 0; */
-    /*   writePwm(pwm); */
-    /*   while (1) { */
-    /*   } */
-    /* } */
+    //safety conditions
+    if ((mode==Stab) && (pos > 3.2 || pos < -3.2 || pendPos < -0.25 || pendPos > 0.25)) {
+      RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15);
+      IntMasterDisable();
+      pwm = 0;
+      writePwm(pwm);
+      while (1) {
+      }
+    }
 
     if (mode==Open) {
       //updating pendulum and motor position and speed vars
@@ -318,40 +316,31 @@ int main(void)
 
       //updating pendulum and motor position and speed vars
       if (pendEncPeriod != 0) {
-	pendSpd = 50000000.0/((double)pendEncPeriod)/4000/4;
+	pendSpd = 50000000.0/((double)pendEncPeriod)/4000/4*2*PI;
       } else {
 	pendSpd = 1e-10;
       }
-      pendPos = pendEncAngle/4000.0/4;
+      pendPos = pendEncAngle/4000.0/4*2*PI;
 
       if (motEncPeriod != 0) {
-	spd = 50000000.0/((double)motEncPeriod)/720;
+	spd = 50000000.0/((double)motEncPeriod)/720*2*PI;
       } else {
 	spd = 1e-10;
       }
-      pos = motEncAngle/720.0;
+      pos = motEncAngle/720.0*2*PI;
 
-      /* // control law */
-      /* pwm = 100*pendPos-1.5*pendSpd; */
-      /* if (pwm>PWM_MAX) { */
-      /* 	pwm=PWM_MAX; */
-      /* } else if (pwm <-PWM_MAX) { */
-      /* 	pwm=-PWM_MAX; */
-      /* } */
-      counter = counter + 1;
-      if (counter == 1000) {
-	if (!flag) {
-	  pwm = 0.99;
-	  flag = 1;
-	} else {
-	  pwm = -0.99;
-	  flag = 0;
-	}
-	counter = 0;
+
+      // control law
+      pwm = caclControllerOutput(pos, spd, pendPos, pendSpd)/9.0;
+      if (pwm>PWM_MAX) {
+      	pwm=PWM_MAX;
+      } else if (pwm <-PWM_MAX) {
+      	pwm=-PWM_MAX;
       }
-
-      counter++;
       writePwm(pwm);
+      
+
+
       writeMonData(pendEncPeriod);
       writeMonData(pendEncAngle);
       writeMonData(motEncPeriod);

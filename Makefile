@@ -85,6 +85,7 @@ ${COMPILER}:
 # Rules for building the invpend example.
 #
 ${COMPILER}/invpend.axf: ${COMPILER}/invpend.o
+${COMPILER}/invpend.axf: ${COMPILER}/controller.o
 ${COMPILER}/invpend.axf: ${COMPILER}/enet.o
 ${COMPILER}/invpend.axf: ${COMPILER}/queue.o
 ${COMPILER}/invpend.axf: ${COMPILER}/locator.o
