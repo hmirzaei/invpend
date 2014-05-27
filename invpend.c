@@ -30,6 +30,7 @@
 #include "driverlib/timer.h"
 #include "drivers/rit128x96x4.h"
 
+#include "controller.c"
 
 enum Mode {
   Open = 0,
@@ -43,8 +44,8 @@ int ulPeriod;
 char str[40];
 const int encStates[4] = {0,1,3,2};
 
-double pwm;
-long pwmLong;
+double pwm, pwm2;
+long pwmLong, pwmLong2;
 double pendSpd, pendPos, pos, spd;
 
   
@@ -84,7 +85,8 @@ void Timer0IntHandler(void)
 {
   TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
   timerFlag = 1;
-  lwIPTimer(10);
+  if (mode != Stab)
+    lwIPTimer(10);
 }
 
 
@@ -221,6 +223,11 @@ void init(void) {
 
 int main(void)
 {
+  long pendEncAngle2; 
+  long pendEncPeriod2;
+  long motEncAngle2;  
+  long motEncPeriod2; 
+
   timerFlag = 0;
   dhcpDone = 0;
   pwm = 0;
@@ -257,15 +264,17 @@ int main(void)
 
     // push button actions
     if (GPIOPinRead(GPIO_PORTE_BASE, LEFT) == 0) {
-      pwm = 0.99;
+      pwm = 0.5;
       writePwm(pwm);
       motEncAngle = 0;
     } else if (GPIOPinRead(GPIO_PORTE_BASE, RIGHT) == 0) {
-      pwm = -0.99;
+      pwm = -0.5;
       writePwm(pwm);
       motEncAngle = 0;
     } else if (GPIOPinRead(GPIO_PORTE_BASE, UP) == 0) {
       mode = Stab;
+    } else if (GPIOPinRead(GPIO_PORTE_BASE, DOWN) == 0) {
+      pendEncAngle = 0;
     } else {
       if (mode != Stab) {
 	pwm = 0;
@@ -274,14 +283,14 @@ int main(void)
     }
     
     //safety conditions
-    if ((mode==Stab) && (pos > 3.2 || pos < -3.2 || pendPos < -0.25 || pendPos > 0.25)) {
-      RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15);
-      IntMasterDisable();
-      pwm = 0;
-      writePwm(pwm);
-      while (1) {
-      }
-    }
+    /* if ((mode==Stab) && (pos > 3*PI || pos < -3*PI || pendPos < -PI/4 || pendPos > PI/4)) { */
+    /*   RIT128x96x4StringDraw(" !!!! HALTED !!!!" , 10, 64, 15); */
+    /*   IntMasterDisable(); */
+    /*   pwm = 0; */
+    /*   writePwm(pwm); */
+    /*   while (1) { */
+    /*   } */
+    /* } */
 
     if (mode==Open) {
       //updating pendulum and motor position and speed vars
@@ -313,25 +322,33 @@ int main(void)
     }
 
     if (mode==Stab) {
-
+      IntMasterDisable();
+      pendEncAngle2 = pendEncAngle; 
+      pendEncPeriod2 = pendEncPeriod;
+      motEncAngle2 = motEncAngle;  
+      motEncPeriod2 = motEncPeriod; 
+      IntMasterEnable();
+      
+      TIC;
       //updating pendulum and motor position and speed vars
-      if (pendEncPeriod != 0) {
-	pendSpd = 50000000.0/((double)pendEncPeriod)/4000/4*2*PI;
+      if (pendEncPeriod2 != 0) {
+	pendSpd = 50000000.0/((double)pendEncPeriod2)/4000/4*2*PI;
       } else {
 	pendSpd = 1e-10;
       }
-      pendPos = pendEncAngle/4000.0/4*2*PI;
+      pendPos = pendEncAngle2/4000.0/4*2*PI;
 
-      if (motEncPeriod != 0) {
-	spd = 50000000.0/((double)motEncPeriod)/720*2*PI;
+      if (motEncPeriod2 != 0) {
+	spd = 50000000.0/((double)motEncPeriod2)/720*2*PI;
       } else {
 	spd = 1e-10;
       }
-      pos = motEncAngle/720.0*2*PI;
+      pos = motEncAngle2/720.0*2*PI;
 
 
       // control law
-      pwm = caclControllerOutput(pos, spd, pendPos, pendSpd)/9.0;
+      pwm = calcControllerOutput(pos, spd, pendPos, pendSpd)/9.0;
+      pwm2 = pwm;
       if (pwm>PWM_MAX) {
       	pwm=PWM_MAX;
       } else if (pwm <-PWM_MAX) {
@@ -339,18 +356,21 @@ int main(void)
       }
       writePwm(pwm);
       
-
-
-      writeMonData(pendEncPeriod);
-      writeMonData(pendEncAngle);
-      writeMonData(motEncPeriod);
-      writeMonData(motEncAngle);
+      pwmLong = *((long * ) &pwm2);
+      pwmLong2 = *((long * ) &pwm2 + 1);
+      writeMonData(pendEncPeriod2);
+      writeMonData(pendEncAngle2);
+      writeMonData(motEncPeriod2);
+      writeMonData(motEncAngle2);
       writeMonData(pwmLong);
+      writeMonData(pwmLong2);
+      lwIPTimer(10);
       /* writeMonData(counter);  */
       /* writeMonData(counter*2); */
       /* writeMonData(counter*3); */
       /* writeMonData(counter*4); */
       /* writeMonData(counter*5); */
+      TOC;
     }
 
 

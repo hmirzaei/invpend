@@ -9,7 +9,7 @@
 #define CODE130_QUEUE_H
 
 
-#define MAX_SIZE    10000        // Define maximum length of the queue
+#define MAX_SIZE    5000        // Define maximum length of the queue
 
 // List Function Prototypes
 void InitQueue();             // Initialize the queue
