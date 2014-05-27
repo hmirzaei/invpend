@@ -7,10 +7,11 @@ import time
 import sys
 import math
 import pickle
+import struct
 
-REC_LEN = 40000
+REC_LEN = 50000
 
-HOST = '128.195.55.252'  # The remote host5
+HOST = '128.195.55.249'  # The remote host5
 PORT = 23  # The same port as used by the server
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 print("trying ...")
@@ -28,6 +29,7 @@ while len(data) < REC_LEN:
     sys.stdout.write("\r%d%%" %(float(len(data))/REC_LEN*100))    # or print >> sys.stdout, "\r%d%%" %i,
     sys.stdout.flush()
 
+
 print("max count: ", max(counts))
 print(counts)
 plt.plot(counts)
@@ -36,12 +38,14 @@ plt.show()
 print("done")
 print(len(data))
 
-data = data[:math.floor(len(data)/20)*20]
+K = 6
+
+data = data[:math.floor(len(data)/(K*4))*(K*4)]
 data2 = [data[i:i+4] for i in range(0,math.floor(len(data)/4),4)]
-print('\n'.join([ str(myelement) for myelement in data2[::5] ]))
+print('\n'.join([ str(myelement) for myelement in data2[::K] ]))
 data = np.array(data)
 data = data[0::4] + (data[1::4] << 8) + (data[2::4] << 16) + (data[3::4] << 24)
-data = data.reshape(len(data)/5,5)
+data = data.reshape(len(data)/K, K)
 
 pickle.dump(data, open('save.p', 'wb'), 2)
 data = pickle.load(open("save.p", 'rb'))
@@ -54,12 +58,17 @@ for i in range(data.shape[0]):
         else:
             data2[i,j] = data[i,j]
 
-print(data[:,0])
+plt.plot(list(data2[:,0]))
 data2[:,0] = 50000000.0/data2[:,0]/4000/4
+plt.plot(list(data2[:,0]*1e4))
+plt.show()
 data2[:,1] = data2[:,1]/4000.0/4
 data2[:,2] = 50000000.0/data2[:,2]/720
 data2[:,3] = data2[:,3]/720.0
-data2[:,4] = -data2[:,4]/3333.33
+l1 = list(data[:,4])
+l2 = list(data[:,5])
+l3 = [struct.unpack('d', struct.pack('<L', l1[ind]) + struct.pack('<L', l2[ind])) for ind in range(len(l1))]
+#data2[:,4] = -data2[:,4]/3333.33
 
 t = np.array(range(data2.shape[0]))*3e-3
 
@@ -91,10 +100,13 @@ plt.grid()
 plt.ylabel('deg/s')
 
 plt.subplot(5,1,5)
-plt.plot(t,data2[:,4]*100)
+plt.plot(t,l3)
 plt.title('PWM Command')
 plt.grid()
 plt.ylabel('%')
+
+np.savetxt("data2.csv", data2, delimiter=",")
+np.savetxt("l3.csv", l3, delimiter=",")
 
 # a= 100*data2[:,1]-1.5*data2[:,0]
 # a=(a>1).choose(a,1)
