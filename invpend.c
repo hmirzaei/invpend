@@ -345,9 +345,15 @@ int main(void)
       }
       pos = motEncAngle2/720.0*2*PI;
 
+#define K1    0.0582
+#define K2   -1.0000
+#define K3   -2.3553
+#define K4   67.2721
+#define K5    8.3989
 
       // control law
-      pwm = calcControllerOutput(pos, spd, pendPos, pendSpd)/9.0;
+      //pwm = calcControllerOutput(pos, spd, pendPos, pendSpd)/9.0;
+      pwm = (-(K2) *  pos - (K3) * spd - (K4) * pendPos - (K5) * pendSpd) / 9.0;
       pwm2 = pwm;
       if (pwm>PWM_MAX) {
       	pwm=PWM_MAX;
